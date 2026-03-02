@@ -181,3 +181,9 @@ git push
    - 路由层在 `SecurityConfig` 中对管理员接口做 URL 级权限限制；
    - 业务层在 Controller/Service 中通过 `RoleGuard` 做细粒度 RBAC 校验。  
 3. 上下文说明：当前系统未引入 `@Async` 等异步执行链路；若后续扩展异步任务，需补充安全上下文传递策略。
+
+## 十、多元综合评价模型（第4章可直接引用）
+1. 评分公式：`S_total = alpha*S_process + beta*C_team + gamma*S_final`。  
+2. 约束条件：`alpha + beta + gamma = 1`。  
+3. 系统实现：后端在成绩保存时自动计算 `final_score`，并在成绩列表与导出时按公式返回总评，避免手工录入总评造成口径不一致。  
+4. 默认权重：`alpha=0.4, beta=0.3, gamma=0.3`，配置位置：`backend/src/main/resources/application.yml` 下 `training.score`。  

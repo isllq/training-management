@@ -36,3 +36,7 @@ logging:
 training:
   file:
     upload-dir: ./uploads
+  score:
+    alpha: 0.4
+    beta: 0.3
+    gamma: 0.3

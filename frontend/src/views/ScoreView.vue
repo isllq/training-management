@@ -2,7 +2,7 @@
   <div class="module-page">
     <div class="module-head page-card">
       <div class="module-head-title">综合成绩管理</div>
-      <div class="module-head-desc">支持教师按科目和班级筛选后录入成绩，按学期查看成绩单。</div>
+      <div class="module-head-desc">基于多元综合评价模型自动生成总评：过程得分 + 团队协作得分 + 答辩得分。</div>
     </div>
 
     <div class="page-card">
@@ -16,6 +16,7 @@
         <el-select v-model="query.className" placeholder="按班级筛选" clearable filterable>
           <el-option v-for="item in classOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
+        <el-tag type="info">权重公式：{{ formulaText }}</el-tag>
         <el-button v-if="canManageScore" type="primary" @click="openCreate">录入成绩</el-button>
         <el-button v-if="canManageScore" @click="exportScores">导出成绩单</el-button>
       </div>
@@ -31,14 +32,14 @@
           <template #default="{ row }">{{ row.className || classNameByPublish(row.publishId) }}</template>
         </el-table-column>
         <el-table-column label="成绩类型" width="170">
-          <template #default>综合成绩（平时+任务+报告）</template>
+          <template #default>多元综合评价（过程+协作+答辩）</template>
         </el-table-column>
         <el-table-column label="学生姓名" width="120">
           <template #default="{ row }">{{ row.studentName || studentName(row.studentId) }}</template>
         </el-table-column>
-        <el-table-column prop="usualScore" label="平时表现" width="100" />
-        <el-table-column prop="taskScore" label="任务完成" width="100" />
-        <el-table-column prop="reportScore" label="报告答辩" width="100" />
+        <el-table-column prop="usualScore" label="过程得分" width="100" />
+        <el-table-column prop="taskScore" label="团队协作得分" width="120" />
+        <el-table-column prop="reportScore" label="答辩得分" width="100" />
         <el-table-column prop="finalScore" label="综合总评" width="100" />
         <el-table-column v-if="canManageScore" label="操作" width="180">
           <template #default="{ row }">
@@ -58,7 +59,10 @@
     >
       <el-form :model="form" label-width="95px" class="dialog-form">
         <el-form-item label="成绩类型">
-          <el-tag type="info">综合成绩（平时+任务+报告）</el-tag>
+          <el-tag type="info">多元综合评价（过程+协作+答辩）</el-tag>
+        </el-form-item>
+        <el-form-item label="计算公式">
+          <span>{{ formulaText }}</span>
         </el-form-item>
         <el-form-item label="科目筛选">
           <el-select v-model="formFilter.projectId" filterable clearable placeholder="请选择科目" @change="onFormFilterChange">
@@ -82,10 +86,12 @@
             <el-option v-for="item in dialogStudentOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="平时表现"><el-input-number v-model="form.usualScore" :min="0" :max="100" :precision="2" /></el-form-item>
-        <el-form-item label="任务完成"><el-input-number v-model="form.taskScore" :min="0" :max="100" :precision="2" /></el-form-item>
-        <el-form-item label="报告答辩"><el-input-number v-model="form.reportScore" :min="0" :max="100" :precision="2" /></el-form-item>
-        <el-form-item label="综合总评"><el-input-number v-model="form.finalScore" :min="0" :max="100" :precision="2" /></el-form-item>
+        <el-form-item label="过程得分"><el-input-number v-model="form.usualScore" :min="0" :max="100" :precision="2" /></el-form-item>
+        <el-form-item label="团队协作"><el-input-number v-model="form.taskScore" :min="0" :max="100" :precision="2" /></el-form-item>
+        <el-form-item label="答辩得分"><el-input-number v-model="form.reportScore" :min="0" :max="100" :precision="2" /></el-form-item>
+        <el-form-item label="综合总评">
+          <el-input-number :model-value="previewFinalScore" :min="0" :max="100" :precision="2" :disabled="true" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -98,7 +104,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { createScoreApi, deleteScoreApi, listScoresApi, updateScoreApi } from '../api/scores'
+import { createScoreApi, deleteScoreApi, getScoreFormulaApi, listScoresApi, updateScoreApi } from '../api/scores'
 import { listProjectsApi, listPublishesApi } from '../api/projects'
 import { listUserOptionsApi } from '../api/auth'
 import { ROLE, hasAnyRole } from '../utils/auth'
@@ -108,6 +114,7 @@ const canManageScore = computed(() => hasAnyRole([ROLE.ADMIN, ROLE.TEACHER]))
 
 const query = reactive({ termName: '', projectId: null, className: '' })
 const scores = ref([])
+const formula = ref({ alpha: 0.4, beta: 0.3, gamma: 0.3 })
 const projects = ref([])
 const publishes = ref([])
 const allStudents = ref([])
@@ -123,6 +130,18 @@ const form = reactive({
   finalScore: 88
 })
 const formFilter = reactive({ projectId: null, className: '' })
+const formulaText = computed(() =>
+  `S_total = ${formula.value.alpha}×S_process + ${formula.value.beta}×C_team + ${formula.value.gamma}×S_final`
+)
+const previewFinalScore = computed(() => {
+  const usual = Number(form.usualScore || 0)
+  const task = Number(form.taskScore || 0)
+  const report = Number(form.reportScore || 0)
+  const total = usual * Number(formula.value.alpha || 0) +
+    task * Number(formula.value.beta || 0) +
+    report * Number(formula.value.gamma || 0)
+  return Number(total.toFixed(2))
+})
 
 const projectNameMap = computed(() => toNameMap(projects.value, 'id', 'projectName'))
 const studentNameMap = computed(() => toNameMap(allStudents.value, 'id', 'name'))
@@ -260,6 +279,10 @@ const loadDicts = async () => {
   }
 }
 
+const loadFormula = async () => {
+  formula.value = await getScoreFormulaApi()
+}
+
 const loadScores = async () => {
   scores.value = await listScoresApi({})
 }
@@ -279,7 +302,7 @@ const openCreate = async () => {
     usualScore: 85,
     taskScore: 88,
     reportScore: 90,
-    finalScore: 88
+    finalScore: null
   })
   if (form.publishId) {
     syncFormFilterByPublish(form.publishId)
@@ -304,6 +327,7 @@ const submit = async () => {
     ElMessage.warning('请先按科目和班级选择开设计划与学生')
     return
   }
+  form.finalScore = previewFinalScore.value
   if (form.id) {
     await updateScoreApi(form.id, form)
   } else {
@@ -330,7 +354,7 @@ const csvCell = (value) => {
 const exportScores = () => {
   const rows = filteredScores.value
   const lines = [
-    ['科目名称', '所属学期', '开设班级', '成绩类型', '学生姓名', '平时表现', '任务完成', '报告答辩', '综合总评']
+    ['科目名称', '所属学期', '开设班级', '成绩类型', '学生姓名', '过程得分', '团队协作得分', '答辩得分', '综合总评']
       .map(csvCell)
       .join(',')
   ]
@@ -340,7 +364,7 @@ const exportScores = () => {
         row.projectName || projectNameByPublish(row.publishId),
         row.termName || termNameByPublish(row.publishId),
         row.className || classNameByPublish(row.publishId),
-        '综合成绩（平时+任务+报告）',
+        '多元综合评价（过程+协作+答辩）',
         row.studentName || studentName(row.studentId),
         row.usualScore,
         row.taskScore,
@@ -375,6 +399,7 @@ watch(
 )
 
 onMounted(async () => {
+  await loadFormula()
   await loadDicts()
   await loadScores()
 })

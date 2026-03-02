@@ -1,6 +1,7 @@
 package com.training.controller;
 
 import com.training.common.ApiResponse;
+import com.training.model.dto.ScoreFormulaConfig;
 import com.training.model.entity.TrainScoreFinal;
 import com.training.security.AuthContext;
 import com.training.security.RoleGuard;
@@ -33,6 +34,11 @@ public class ScoreController {
         return ApiResponse.success(list);
     }
 
+    @GetMapping("/formula")
+    public ApiResponse<ScoreFormulaConfig> formula() {
+        return ApiResponse.success(scoreService.formula());
+    }
+
     @PostMapping
     public ApiResponse<TrainScoreFinal> create(@RequestBody TrainScoreFinal scoreFinal) {
         RoleGuard.requireTeacherOrAdmin();
@@ -62,10 +68,10 @@ public class ScoreController {
         response.setContentType("text/csv;charset=UTF-8");
         response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
         PrintWriter writer = new PrintWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
-        writer.println("ID,学期,班级,项目名称,成绩类型,学生ID,学生姓名,平时分,任务分,报告分,总评");
+        writer.println("ID,学期,班级,项目名称,成绩类型,学生ID,学生姓名,过程得分,团队协作得分,答辩得分,总评");
         for (TrainScoreFinal score : list) {
             writer.println(score.getId() + "," + safeCsv(score.getTermName()) + "," + safeCsv(score.getClassName()) + ","
-                    + safeCsv(score.getProjectName()) + ",综合成绩（平时+任务+报告）," + score.getStudentId() + ","
+                    + safeCsv(score.getProjectName()) + ",多元综合评价（过程+协作+答辩）," + score.getStudentId() + ","
                     + safeCsv(score.getStudentName()) + "," + score.getUsualScore() + "," + score.getTaskScore() + ","
                     + score.getReportScore() + "," + score.getFinalScore());
         }
