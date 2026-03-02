@@ -40,6 +40,17 @@
               </template>
             </el-input>
           </el-form-item>
+          <el-form-item>
+            <div class="captcha-row">
+              <el-input
+                v-model="form.captcha"
+                placeholder="请输入验证码"
+                maxlength="4"
+                @keyup.enter="login"
+              />
+              <button class="captcha-code" type="button" @click="refreshCaptcha">{{ captchaCode }}</button>
+            </div>
+          </el-form-item>
           <el-button type="primary" class="full login-btn" :loading="loading" @click="login">登录系统</el-button>
         </el-form>
 
@@ -68,9 +79,11 @@ import { defaultHomeByRole } from '../utils/auth'
 
 const router = useRouter()
 const loading = ref(false)
+const captchaCode = ref('')
 const form = reactive({
   username: 'admin',
-  password: '123456'
+  password: '123456',
+  captcha: ''
 })
 
 const fill = (username) => {
@@ -78,9 +91,34 @@ const fill = (username) => {
   form.password = '123456'
 }
 
+const makeCaptcha = () => {
+  const dict = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let code = ''
+  for (let i = 0; i < 4; i++) {
+    code += dict[Math.floor(Math.random() * dict.length)]
+  }
+  return code
+}
+
+const refreshCaptcha = () => {
+  captchaCode.value = makeCaptcha()
+  form.captcha = ''
+}
+
+refreshCaptcha()
+
 const login = async () => {
   if (!form.username || !form.password) {
     ElMessage.warning('请输入用户名和密码')
+    return
+  }
+  if (!form.captcha) {
+    ElMessage.warning('请输入验证码')
+    return
+  }
+  if (form.captcha.trim().toUpperCase() !== captchaCode.value) {
+    ElMessage.error('验证码错误，请重试')
+    refreshCaptcha()
     return
   }
   loading.value = true
@@ -92,6 +130,7 @@ const login = async () => {
     router.push(defaultHomeByRole(data.userType))
   } catch (error) {
     ElMessage.error(error.message || '登录失败')
+    refreshCaptcha()
   } finally {
     loading.value = false
   }
@@ -251,6 +290,33 @@ const login = async () => {
 .login-btn {
   width: 100%;
   margin-top: 4px;
+}
+
+.captcha-row {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+}
+
+.captcha-row :deep(.el-input) {
+  flex: 1;
+}
+
+.captcha-code {
+  width: 114px;
+  border: 1px solid #ccdae7;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f2f8fc 0%, #e7f1f8 100%);
+  color: #1d4a6d;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.captcha-code:hover {
+  border-color: #82a8c6;
+  color: #143e5c;
 }
 
 .quick {
