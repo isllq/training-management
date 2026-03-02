@@ -82,7 +82,7 @@ public class AuthController {
             scopedClassName = me == null ? null : me.getClassName();
             userType = "STUDENT";
         }
-        List<Map<String, Object>> options = userMapper.listOptions(userType, scopedClassName).stream()
+        List<Map<String, Object>> options = userService.listOptions(userType, scopedClassName).stream()
                 .map(item -> {
                     Map<String, Object> map = new java.util.HashMap<>();
                     map.put("id", item.getId());

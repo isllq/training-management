@@ -174,3 +174,10 @@ git push
 2. `uploads/` 是否要上传（一般建议忽略）。  
 3. `node_modules/`、`target/`、日志文件是否已被 `.gitignore` 排除。  
 4. 如果是论文答辩版本，建议打一个 tag：`v1.0-thesis-demo`。
+
+## 九、安全实现口径（答辩建议）
+1. 认证层：采用 `Spring Security + JWT Filter`，统一完成登录态校验与身份解析。  
+2. 授权层：采用“双层校验”：
+   - 路由层在 `SecurityConfig` 中对管理员接口做 URL 级权限限制；
+   - 业务层在 Controller/Service 中通过 `RoleGuard` 做细粒度 RBAC 校验。  
+3. 上下文说明：当前系统未引入 `@Async` 等异步执行链路；若后续扩展异步任务，需补充安全上下文传递策略。

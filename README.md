@@ -55,6 +55,7 @@ npm run dev
 
 ## 5. 已实现模块
 - 登录认证（Spring Security + JWT）
+- 权限控制（Security 路由拦截 + 业务层 RoleGuard RBAC）
 - 用户管理（增删改查、重置密码）
 - Excel 批量导入用户（管理员）
 - 项目管理（项目模板 + 开设实例）

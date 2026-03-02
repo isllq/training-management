@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface UserService {
     List<SysUser> list(String keyword, String className, String sortBy);
+    List<SysUser> listOptions(String userType, String className);
 
     SysUser create(SysUser user, String rawPassword);
 

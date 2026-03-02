@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .authorizeRequests()
                 .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .antMatchers("/api/auth/login", "/api/health", "/error").permitAll()
+                .antMatchers("/api/users/**", "/api/base/**", "/api/system/**", "/api/rbac/**").hasRole("ADMIN")
                 .anyRequest().authenticated();
 
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -71,4 +72,3 @@ public class SecurityConfig {
         response.getWriter().write("{\"code\":" + code + ",\"message\":\"" + message + "\",\"data\":null}");
     }
 }
-

@@ -1,5 +1,6 @@
 package com.training.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.training.common.BizException;
 import com.training.mapper.SysUserMapper;
 import com.training.model.entity.SysUser;
@@ -12,6 +13,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -30,7 +32,39 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<SysUser> list(String keyword, String className, String sortBy) {
-        return userMapper.list(keyword, className, sortBy);
+        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+        wrapper.eq("is_deleted", 0);
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like("username", keyword).or().like("real_name", keyword));
+        }
+        if (StringUtils.hasText(className)) {
+            wrapper.eq("class_name", className);
+        }
+        if ("CLASS_ASC".equals(sortBy)) {
+            wrapper.last("ORDER BY CASE WHEN class_name IS NULL OR class_name = '' THEN 1 ELSE 0 END ASC, class_name ASC, id ASC");
+        } else if ("NAME_INITIAL_ASC".equals(sortBy)) {
+            wrapper.last("ORDER BY UPPER(SUBSTRING(real_name, 1, 1)) ASC, real_name ASC, id ASC");
+        } else if ("ID_DESC".equals(sortBy)) {
+            wrapper.orderByDesc("id");
+        } else {
+            wrapper.orderByAsc("id");
+        }
+        return userMapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<SysUser> listOptions(String userType, String className) {
+        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+        wrapper.select("id", "real_name", "user_type", "class_name");
+        wrapper.eq("is_deleted", 0).eq("status", 1);
+        if (StringUtils.hasText(userType)) {
+            wrapper.eq("user_type", userType);
+        }
+        if (StringUtils.hasText(className)) {
+            wrapper.eq("class_name", className);
+        }
+        wrapper.orderByAsc("id");
+        return userMapper.selectList(wrapper);
     }
 
     @Override
