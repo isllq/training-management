@@ -1,0 +1,142 @@
+package com.training.service.impl;
+
+import com.training.common.BizException;
+import com.training.mapper.SysUserMapper;
+import com.training.model.entity.SysUser;
+import com.training.service.UserService;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.InputStream;
+import java.util.List;
+
+@Service
+public class UserServiceImpl implements UserService {
+    private final SysUserMapper userMapper;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final DataFormatter dataFormatter = new DataFormatter();
+
+    public UserServiceImpl(SysUserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
+
+    @Override
+    public List<SysUser> list(String keyword, String className, String sortBy) {
+        return userMapper.list(keyword, className, sortBy);
+    }
+
+    @Override
+    public SysUser create(SysUser user, String rawPassword) {
+        if (userMapper.selectByUsername(user.getUsername()) != null) {
+            throw new BizException("用户名已存在");
+        }
+        if (!"STUDENT".equals(user.getUserType())) {
+            user.setClassName(null);
+        }
+        if (user.getStatus() == null) {
+            user.setStatus(1);
+        }
+        user.setPasswordHash(passwordEncoder.encode(rawPassword));
+        userMapper.insert(user);
+        user.setPasswordHash(null);
+        return user;
+    }
+
+    @Override
+    public void update(SysUser user) {
+        if (user.getId() == null) {
+            throw new BizException("用户ID不能为空");
+        }
+        SysUser existing = userMapper.selectById(user.getId());
+        if (existing == null) {
+            throw new BizException("用户不存在或已删除");
+        }
+        if (!"STUDENT".equals(user.getUserType())) {
+            user.setClassName(null);
+        } else if (user.getClassName() == null) {
+            user.setClassName(existing.getClassName());
+        }
+        int affected = userMapper.update(user);
+        if (affected <= 0) {
+            throw new BizException("用户不存在或已删除");
+        }
+    }
+
+    @Override
+    public void remove(Long id) {
+        int affected = userMapper.softDelete(id);
+        if (affected <= 0) {
+            throw new BizException("用户不存在或已删除");
+        }
+    }
+
+    @Override
+    public void resetPassword(Long id, String rawPassword) {
+        int affected = userMapper.updatePassword(id, passwordEncoder.encode(rawPassword));
+        if (affected <= 0) {
+            throw new BizException("用户不存在或已删除");
+        }
+    }
+
+    @Override
+    public int importUsersFromExcel(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BizException("上传文件不能为空");
+        }
+        int successCount = 0;
+        try (InputStream in = file.getInputStream(); Workbook workbook = new XSSFWorkbook(in)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
+                String username = readCell(row.getCell(0));
+                String realName = readCell(row.getCell(1));
+                String userType = readCell(row.getCell(2));
+                String phone = readCell(row.getCell(3));
+                String email = readCell(row.getCell(4));
+                String password = readCell(row.getCell(5));
+                String className = readCell(row.getCell(6));
+                if (username.isEmpty() || realName.isEmpty() || userType.isEmpty()) {
+                    continue;
+                }
+                if (!"ADMIN".equals(userType) && !"TEACHER".equals(userType) && !"STUDENT".equals(userType)) {
+                    continue;
+                }
+                if (userMapper.selectByUsername(username) != null) {
+                    continue;
+                }
+                SysUser user = new SysUser();
+                user.setUsername(username);
+                user.setRealName(realName);
+                user.setUserType(userType);
+                user.setPhone(phone);
+                user.setEmail(email);
+                user.setClassName("STUDENT".equals(userType) ? className : null);
+                user.setStatus(1);
+                user.setPasswordHash(passwordEncoder.encode(password.isEmpty() ? "123456" : password));
+                userMapper.insert(user);
+                successCount++;
+            }
+        } catch (Exception ex) {
+            throw new BizException("Excel导入失败: " + ex.getMessage());
+        }
+        return successCount;
+    }
+
+    private String readCell(Cell cell) {
+        if (cell == null) {
+            return "";
+        }
+        String value = dataFormatter.formatCellValue(cell);
+        return value == null ? "" : value.trim();
+    }
+}

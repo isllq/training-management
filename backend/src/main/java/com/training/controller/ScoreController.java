@@ -1,0 +1,82 @@
+package com.training.controller;
+
+import com.training.common.ApiResponse;
+import com.training.model.entity.TrainScoreFinal;
+import com.training.security.AuthContext;
+import com.training.security.RoleGuard;
+import com.training.service.ScoreService;
+import org.springframework.web.bind.annotation.*;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.net.URLEncoder;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/scores")
+public class ScoreController {
+    private final ScoreService scoreService;
+
+    public ScoreController(ScoreService scoreService) {
+        this.scoreService = scoreService;
+    }
+
+    @GetMapping
+    public ApiResponse<List<TrainScoreFinal>> list(@RequestParam(value = "publishId", required = false) Long publishId) {
+        List<TrainScoreFinal> list = scoreService.list(publishId);
+        if (RoleGuard.isStudent()) {
+            Long uid = AuthContext.getUserId();
+            list = list.stream().filter(item -> uid != null && uid.equals(item.getStudentId())).collect(Collectors.toList());
+        }
+        return ApiResponse.success(list);
+    }
+
+    @PostMapping
+    public ApiResponse<TrainScoreFinal> create(@RequestBody TrainScoreFinal scoreFinal) {
+        RoleGuard.requireTeacherOrAdmin();
+        return ApiResponse.success(scoreService.create(scoreFinal));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<Void> update(@PathVariable("id") Long id, @RequestBody TrainScoreFinal scoreFinal) {
+        RoleGuard.requireTeacherOrAdmin();
+        scoreFinal.setId(id);
+        scoreService.update(scoreFinal);
+        return ApiResponse.success();
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable("id") Long id) {
+        RoleGuard.requireTeacherOrAdmin();
+        scoreService.delete(id);
+        return ApiResponse.success();
+    }
+
+    @GetMapping("/export")
+    public void export(@RequestParam(value = "publishId", required = false) Long publishId, HttpServletResponse response) throws Exception {
+        RoleGuard.requireTeacherOrAdmin();
+        List<TrainScoreFinal> list = scoreService.list(publishId);
+        String fileName = URLEncoder.encode("score_export.csv", "UTF-8");
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+        PrintWriter writer = new PrintWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
+        writer.println("ID,学期,班级,项目名称,成绩类型,学生ID,学生姓名,平时分,任务分,报告分,总评");
+        for (TrainScoreFinal score : list) {
+            writer.println(score.getId() + "," + safeCsv(score.getTermName()) + "," + safeCsv(score.getClassName()) + ","
+                    + safeCsv(score.getProjectName()) + ",综合成绩（平时+任务+报告）," + score.getStudentId() + ","
+                    + safeCsv(score.getStudentName()) + "," + score.getUsualScore() + "," + score.getTaskScore() + ","
+                    + score.getReportScore() + "," + score.getFinalScore());
+        }
+        writer.flush();
+    }
+
+    private String safeCsv(String value) {
+        if (value == null) {
+            return "";
+        }
+        String escaped = value.replace("\"", "\"\"");
+        return "\"" + escaped + "\"";
+    }
+}

@@ -1,0 +1,15 @@
+import http from './http'
+
+export const listTeamsApi = (params) => http.get('/teams', { params })
+export const createTeamApi = (data) => http.post('/teams', data)
+export const updateTeamApi = (id, data) => http.put(`/teams/${id}`, data)
+export const deleteTeamApi = (id) => http.delete(`/teams/${id}`)
+export const reviewTeamApi = (id, data) => http.put(`/teams/${id}/review`, data)
+export const generateTeamsApi = (publishId) => http.post('/teams/generate', null, { params: { publishId } })
+export const listMembersApi = (teamId) => http.get(`/teams/${teamId}/members`)
+export const addMemberApi = (teamId, data) => http.post(`/teams/${teamId}/members`, data)
+export const deleteMemberApi = (memberId) => http.delete(`/teams/members/${memberId}`)
+export const myTeamApi = (params) => http.get('/teams/my', { params })
+export const joinTeamApi = (teamId) => http.post(`/teams/${teamId}/join`)
+export const quitTeamApi = (teamId) => http.delete(`/teams/${teamId}/quit`)
+export const transferTeamLeaderApi = (teamId, studentId) => http.put(`/teams/${teamId}/leader`, { studentId })

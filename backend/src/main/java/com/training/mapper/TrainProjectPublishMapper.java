@@ -1,0 +1,39 @@
+package com.training.mapper;
+
+import com.training.model.entity.TrainProjectPublish;
+import org.apache.ibatis.annotations.*;
+
+import java.util.List;
+
+@Mapper
+public interface TrainProjectPublishMapper {
+    @Select("<script>" +
+            "SELECT p.*, tp.project_name, u.real_name AS teacher_name FROM train_project_publish p " +
+            "LEFT JOIN train_project tp ON p.project_id = tp.id AND tp.is_deleted = 0 " +
+            "LEFT JOIN sys_user u ON p.teacher_id = u.id " +
+            "WHERE p.is_deleted = 0 " +
+            "<if test='className != null and className != \"\"'> " +
+            "AND p.class_name LIKE CONCAT('%',#{className},'%') " +
+            "</if>" +
+            "ORDER BY p.id DESC" +
+            "</script>")
+    List<TrainProjectPublish> list(@Param("className") String className);
+
+    @Select("SELECT p.*, tp.project_name, u.real_name AS teacher_name FROM train_project_publish p " +
+            "LEFT JOIN train_project tp ON p.project_id = tp.id AND tp.is_deleted = 0 " +
+            "LEFT JOIN sys_user u ON p.teacher_id = u.id " +
+            "WHERE p.id=#{id} AND p.is_deleted=0")
+    TrainProjectPublish selectById(@Param("id") Long id);
+
+    @Insert("INSERT INTO train_project_publish(project_id, term_name, class_name, teacher_id, group_count, group_size_limit, assessment_standard, start_date, end_date, status, created_at, updated_at, is_deleted) " +
+            "VALUES(#{projectId}, #{termName}, #{className}, #{teacherId}, #{groupCount}, #{groupSizeLimit}, #{assessmentStandard}, #{startDate}, #{endDate}, #{status}, NOW(), NOW(), 0)")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    int insert(TrainProjectPublish publish);
+
+    @Update("UPDATE train_project_publish SET project_id=#{projectId}, term_name=#{termName}, class_name=#{className}, teacher_id=#{teacherId}, " +
+            "group_count=#{groupCount}, group_size_limit=#{groupSizeLimit}, assessment_standard=#{assessmentStandard}, start_date=#{startDate}, end_date=#{endDate}, status=#{status}, updated_at=NOW() WHERE id=#{id} AND is_deleted=0")
+    int update(TrainProjectPublish publish);
+
+    @Update("UPDATE train_project_publish SET is_deleted=1, updated_at=NOW() WHERE id=#{id} AND is_deleted=0")
+    int softDelete(@Param("id") Long id);
+}
