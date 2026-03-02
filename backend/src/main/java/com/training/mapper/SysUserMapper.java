@@ -1,12 +1,13 @@
 package com.training.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.training.model.entity.SysUser;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
 
 @Mapper
-public interface SysUserMapper {
+public interface SysUserMapper extends BaseMapper<SysUser> {
 
     @Select("SELECT * FROM sys_user WHERE username = #{username} AND is_deleted = 0 LIMIT 1")
     SysUser selectByUsername(@Param("username") String username);

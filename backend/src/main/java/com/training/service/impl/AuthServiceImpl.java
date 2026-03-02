@@ -9,7 +9,7 @@ import com.training.model.entity.SysLoginLog;
 import com.training.model.entity.SysUser;
 import com.training.security.JwtUtil;
 import com.training.service.AuthService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,12 +17,16 @@ public class AuthServiceImpl implements AuthService {
     private final SysUserMapper userMapper;
     private final SysLoginLogMapper loginLogMapper;
     private final JwtUtil jwtUtil;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
 
-    public AuthServiceImpl(SysUserMapper userMapper, SysLoginLogMapper loginLogMapper, JwtUtil jwtUtil) {
+    public AuthServiceImpl(SysUserMapper userMapper,
+                           SysLoginLogMapper loginLogMapper,
+                           JwtUtil jwtUtil,
+                           PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
         this.loginLogMapper = loginLogMapper;
         this.jwtUtil = jwtUtil;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override

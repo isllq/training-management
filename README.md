@@ -1,7 +1,7 @@
 # 基于 SpringBoot 的专业综合实训管理系统
 
 ## 1. 技术栈
-- 后端：Spring Boot 2.7.18、MyBatis、MySQL、JWT（JDK 1.8）
+- 后端：Spring Boot 2.7.18、Spring Security、JWT、MyBatis-Plus、MySQL（JDK 1.8）
 - 前端：Vue 3、Vite、Element Plus、Axios
 - 数据库：MySQL 8.x（5.7 也可运行，建议 8.x）
 
@@ -54,7 +54,7 @@ npm run dev
 - 学生：`student01 / 123456`
 
 ## 5. 已实现模块
-- 登录认证（JWT）
+- 登录认证（Spring Security + JWT）
 - 用户管理（增删改查、重置密码）
 - Excel 批量导入用户（管理员）
 - 项目管理（项目模板 + 开设实例）

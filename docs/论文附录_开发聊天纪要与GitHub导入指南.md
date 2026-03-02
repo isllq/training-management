@@ -3,7 +3,7 @@
 ## 一、课题与项目概述
 - 课题名称：基于 SpringBoot 的专业综合实训管理系统设计与实现
 - 技术栈：
-  - 后端：Spring Boot 2.7.x + MyBatis + MySQL + JWT（JDK 1.8）
+  - 后端：Spring Boot 2.7.x + Spring Security + JWT + MyBatis-Plus + MySQL（JDK 1.8）
   - 前端：Vue3 + Vite + Element Plus + Axios
   - 数据库：MySQL 8.x
 - 系统目标：构建“实训全过程”管理平台，支持管理员、教师、学生三类角色，覆盖从项目开设、分组、任务布置、提交、答疑、公告到成绩归档的闭环管理。
@@ -174,4 +174,3 @@ git push
 2. `uploads/` 是否要上传（一般建议忽略）。  
 3. `node_modules/`、`target/`、日志文件是否已被 `.gitignore` 排除。  
 4. 如果是论文答辩版本，建议打一个 tag：`v1.0-thesis-demo`。
-
