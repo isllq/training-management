@@ -11,32 +11,33 @@
         <div class="kpi-value">{{ unreadCount }}</div>
       </div>
       <div class="kpi-item">
-        <div class="kpi-label">当前公告总数</div>
-        <div class="kpi-value">{{ announcements.length }}</div>
+        <div class="kpi-label">当前筛选公告数</div>
+        <div class="kpi-value">{{ filteredAnnouncements.length }}</div>
       </div>
     </div>
 
     <div class="page-card">
       <div class="toolbar">
-        <el-select v-model="query.publishId" placeholder="选择开设计划" clearable filterable>
-          <el-option v-for="item in publishOptions" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select v-model="query.termName" placeholder="按学期筛选" clearable filterable>
+          <el-option v-for="item in termOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+        <el-select v-model="query.publishId" placeholder="按开设计划筛选" clearable filterable>
+          <el-option v-for="item in filteredPublishOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
         <el-input v-model="query.keyword" placeholder="按公告标题或内容检索" clearable @keyup.enter="loadAnnouncements" />
+        <el-button v-if="canManage" :type="query.onlyMine ? 'primary' : 'default'" @click="toggleMineMode">
+          {{ query.onlyMine ? '返回全部公告' : '管理我发布公告' }}
+        </el-button>
         <el-button v-if="canManage" type="primary" @click="openCreate">发布公告</el-button>
       </div>
 
-      <el-table :data="announcements" border stripe :row-class-name="rowClassName">
+      <el-table :data="pagedAnnouncements" border stripe :row-class-name="rowClassName">
         <el-table-column prop="title" label="公告标题" min-width="240" show-overflow-tooltip />
         <el-table-column label="适用开设" min-width="180">
           <template #default="{ row }">{{ publishName(row.publishId) }}</template>
         </el-table-column>
         <el-table-column label="发布人" width="120">
           <template #default="{ row }">{{ row.authorName || userName(row.authorId) }}</template>
-        </el-table-column>
-        <el-table-column label="优先级" width="90">
-          <template #default="{ row }">
-            <el-tag :type="priorityTag(row.priority)">{{ priorityText(row.priority) }}</el-tag>
-          </template>
         </el-table-column>
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
@@ -54,14 +55,24 @@
             <span class="read-stat">已读 {{ row.readCount || 0 }} / 未读 {{ row.unreadCount || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300">
+        <el-table-column label="操作" width="320">
           <template #default="{ row }">
             <el-button size="small" @click="openDetail(row)">查看详情</el-button>
             <el-button v-if="canEditRow(row)" size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button v-if="canEditRow(row)" size="small" type="danger" @click="remove(row.id)">删除</el-button>
+            <el-button v-if="canDeleteRow(row)" size="small" type="danger" @click="remove(row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
+      <div class="pager-wrap" v-if="sortedAnnouncements.length > pageSize">
+        <el-pagination
+          background
+          layout="total, prev, pager, next, jumper"
+          :page-size="pageSize"
+          :current-page="pageNo"
+          :total="sortedAnnouncements.length"
+          @current-change="onPageChange"
+        />
+      </div>
     </div>
 
     <el-dialog
@@ -79,13 +90,6 @@
         </el-form-item>
         <el-form-item label="公告标题"><el-input v-model="form.title" /></el-form-item>
         <el-form-item label="公告内容"><el-input v-model="form.content" type="textarea" rows="6" /></el-form-item>
-        <el-form-item label="优先级">
-          <el-select v-model="form.priority">
-            <el-option label="普通" :value="1" />
-            <el-option label="重要" :value="2" />
-            <el-option label="紧急" :value="3" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="发布状态">
           <el-radio-group v-model="form.status">
             <el-radio :label="1">发布</el-radio>
@@ -134,6 +138,9 @@
 
     <el-dialog v-model="detailVisible" title="公告详情" width="760px" append-to-body>
       <div class="detail-wrap" v-if="detailAnnouncement">
+        <div v-if="canManage && Number(detailAnnouncement.status) === 1" class="detail-reminder">
+          当前公告已发布，如需调整内容，请删除后重新发布。
+        </div>
         <div class="detail-head">
           <h3>{{ detailAnnouncement.title }}</h3>
           <div class="detail-meta">
@@ -149,15 +156,15 @@
         <div class="detail-files">
           <div class="detail-files-title">附件下载</div>
           <el-empty v-if="!detailFiles.length" description="暂无附件" :image-size="56" />
-          <el-table v-else :data="detailFiles" border stripe>
-            <el-table-column prop="originalName" label="文件名" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="uploadedAt" label="上传时间" width="170" />
-            <el-table-column label="操作" width="90">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="downloadFile(row)">下载</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div v-else class="file-list">
+            <div v-for="row in detailFiles" :key="row.id" class="file-item">
+              <div class="file-main">
+                <div class="file-name">{{ row.originalName }}</div>
+                <div class="file-time">{{ row.uploadedAt || '-' }}</div>
+              </div>
+              <el-button size="small" type="primary" plain @click="downloadFile(row)">下载</el-button>
+            </div>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -182,13 +189,13 @@ import { listPublishesApi } from '../api/projects'
 import { listUserOptionsApi } from '../api/auth'
 import { deleteFileApi, downloadFileApi, listFilesApi, uploadFileApi } from '../api/files'
 import { ROLE, getUserId, hasAnyRole } from '../utils/auth'
-import { publishLabel, fallbackName, toNameMap } from '../utils/dicts'
+import { fallbackName, toNameMap } from '../utils/dicts'
 
 const currentUserId = computed(() => getUserId())
 const canManage = computed(() => hasAnyRole([ROLE.ADMIN, ROLE.TEACHER]))
 const isAdmin = computed(() => hasAnyRole([ROLE.ADMIN]))
 
-const query = reactive({ publishId: null, keyword: '' })
+const query = reactive({ termName: '', publishId: null, keyword: '', onlyMine: false })
 const announcements = ref([])
 const unreadCount = ref(0)
 
@@ -202,7 +209,6 @@ const form = reactive({
   publishId: null,
   title: '',
   content: '',
-  priority: 1,
   status: 1,
   publishTime: '',
   expireTime: ''
@@ -214,36 +220,90 @@ const manageFiles = ref([])
 const detailVisible = ref(false)
 const detailAnnouncement = ref(null)
 const detailFiles = ref([])
+const pageNo = ref(1)
+const pageSize = 10
 
-const publishOptions = computed(() => publishes.value.map((item) => ({ value: item.id, label: publishLabel(item) })))
+const publishOptions = computed(() => publishes.value.map((item) => ({ value: item.id, label: publishOptionLabel(item) })))
+const termOptions = computed(() => {
+  const set = new Set()
+  publishes.value.forEach((item) => {
+    if (item.termName) set.add(item.termName)
+  })
+  return Array.from(set)
+    .sort((a, b) => String(b).localeCompare(String(a)))
+    .map((value) => ({ value, label: value }))
+})
+const filteredPublishOptions = computed(() => {
+  if (!query.termName) {
+    return publishOptions.value
+  }
+  const term = String(query.termName)
+  return publishes.value
+    .filter((item) => String(item.termName || '') === term)
+    .map((item) => ({ value: item.id, label: publishOptionLabel(item) }))
+})
 const publishNameMap = computed(() => {
   const map = {}
   publishes.value.forEach((item) => {
-    map[item.id] = publishLabel(item)
+    map[item.id] = publishOptionLabel(item)
   })
   return map
 })
 const userNameMap = computed(() => toNameMap(users.value, 'id', 'name'))
+const publishTermMap = computed(() => {
+  const map = {}
+  publishes.value.forEach((item) => {
+    map[item.id] = item.termName || ''
+  })
+  return map
+})
+const filteredAnnouncements = computed(() => {
+  let list = announcements.value
+  if (query.onlyMine) {
+    list = list.filter((item) => Number(item.authorId) === Number(currentUserId.value))
+  }
+  if (query.publishId) {
+    list = list.filter((item) => item.publishId === query.publishId)
+  }
+  if (query.termName) {
+    const term = String(query.termName)
+    list = list.filter((item) => String(publishTermMap.value[item.publishId] || '') === term)
+  }
+  return list
+})
+const sortedAnnouncements = computed(() =>
+  [...filteredAnnouncements.value]
+    .sort((a, b) => toTimestamp(b.publishTime || b.createdAt) - toTimestamp(a.publishTime || a.createdAt))
+)
+const pagedAnnouncements = computed(() => {
+  const start = (pageNo.value - 1) * pageSize
+  return sortedAnnouncements.value.slice(start, start + pageSize)
+})
 
 const publishName = (id) => {
   if (id == null) return '全体学生'
   return fallbackName(id, publishNameMap.value, '开设')
 }
 const userName = (id) => fallbackName(id, userNameMap.value, '用户')
-
-const priorityText = (priority) => {
-  if (priority === 3) return '紧急'
-  if (priority === 2) return '重要'
-  return '普通'
+const canDeleteRow = (row) => canManage.value && (isAdmin.value || Number(row.authorId) === Number(currentUserId.value))
+const canEditRow = (row) => canDeleteRow(row) && Number(row.status) !== 1
+const toTimestamp = (value) => {
+  if (!value) return 0
+  const time = new Date(String(value).replace(' ', 'T')).getTime()
+  return Number.isNaN(time) ? 0 : time
 }
-
-const priorityTag = (priority) => {
-  if (priority === 3) return 'danger'
-  if (priority === 2) return 'warning'
-  return 'info'
+const publishOptionLabel = (publish) => {
+  const project = publish?.projectName || '实训科目'
+  const className = publish?.className || '未设班级'
+  return `${project} · ${className}`
 }
-
-const canEditRow = (row) => canManage.value && (isAdmin.value || row.authorId === currentUserId.value)
+const toggleMineMode = () => {
+  query.onlyMine = !query.onlyMine
+  pageNo.value = 1
+}
+const onPageChange = (next) => {
+  pageNo.value = next
+}
 
 const isRead = (row) => Number(row?.readFlag) === 1
 const rowClassName = ({ row }) => (isRead(row) ? '' : 'notice-row-unread')
@@ -258,6 +318,7 @@ const loadAnnouncements = async () => {
   if (query.publishId) params.publishId = query.publishId
   if (query.keyword) params.keyword = query.keyword
   announcements.value = await listAnnouncementsApi(params)
+  pageNo.value = 1
 }
 
 const loadUnreadCount = async () => {
@@ -275,10 +336,9 @@ const loadManageFiles = async (announcementId) => {
 const openCreate = async () => {
   Object.assign(form, {
     id: null,
-    publishId: null,
+    publishId: query.publishId || null,
     title: '',
     content: '',
-    priority: 1,
     status: 1,
     publishTime: '',
     expireTime: ''
@@ -290,7 +350,19 @@ const openCreate = async () => {
 }
 
 const openEdit = async (row) => {
-  Object.assign(form, row)
+  if (Number(row.status) === 1) {
+    ElMessage.warning('已发布公告不可编辑，请删除后重新发布')
+    return
+  }
+  Object.assign(form, {
+    id: row.id,
+    publishId: row.publishId ?? null,
+    title: row.title || '',
+    content: row.content || '',
+    status: row.status ?? 0,
+    publishTime: row.publishTime || '',
+    expireTime: row.expireTime || ''
+  })
   pendingFiles.value = []
   uploadFileList.value = []
   await loadManageFiles(row.id)
@@ -325,11 +397,19 @@ const submit = async () => {
   }
   saving.value = true
   try {
+    const payload = {
+      publishId: form.publishId,
+      title: form.title,
+      content: form.content,
+      status: form.status,
+      publishTime: form.publishTime,
+      expireTime: form.expireTime
+    }
     let announcementId = form.id
     if (form.id) {
-      await updateAnnouncementApi(form.id, form)
+      await updateAnnouncementApi(form.id, payload)
     } else {
-      const created = await createAnnouncementApi(form)
+      const created = await createAnnouncementApi(payload)
       announcementId = created.id
       form.id = created.id
     }
@@ -388,10 +468,43 @@ onMounted(async () => {
 })
 
 watch(
+  () => query.termName,
+  () => {
+    if (query.publishId && !filteredPublishOptions.value.some((item) => item.value === query.publishId)) {
+      query.publishId = null
+    }
+    pageNo.value = 1
+  }
+)
+
+watch(
   () => query.publishId,
   async () => {
     await loadAnnouncements()
     await loadUnreadCount()
+  }
+)
+
+watch(
+  () => query.keyword,
+  async (next, prev) => {
+    if (prev && !next) {
+      await loadAnnouncements()
+      await loadUnreadCount()
+    }
+    if (next !== prev) {
+      pageNo.value = 1
+    }
+  }
+)
+
+watch(
+  () => sortedAnnouncements.value.length,
+  (total) => {
+    const maxPage = Math.max(1, Math.ceil(total / pageSize))
+    if (pageNo.value > maxPage) {
+      pageNo.value = maxPage
+    }
   }
 )
 </script>
@@ -435,13 +548,23 @@ watch(
 .detail-wrap {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+}
+
+.detail-reminder {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d9e8f4;
+  background: #f3f8fd;
+  color: #36546b;
+  font-size: 13px;
 }
 
 .detail-head h3 {
   margin: 0;
-  font-size: 20px;
-  color: #1a334a;
+  font-size: 24px;
+  line-height: 1.35;
+  color: #102e46;
 }
 
 .detail-meta {
@@ -456,22 +579,62 @@ watch(
 .detail-content {
   background: #f7fbff;
   border: 1px solid #d8e6f1;
-  border-radius: 10px;
-  padding: 12px;
-  color: #2d475c;
-  line-height: 1.7;
+  border-radius: 12px;
+  padding: 16px 18px;
+  color: #203a50;
+  font-size: 15px;
+  line-height: 1.8;
   white-space: pre-wrap;
 }
 
 .detail-files-title {
   font-weight: 700;
   color: #1f3f5a;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .read-stat {
   color: #35546d;
   font-size: 12px;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d9e6f1;
+  background: #f9fcff;
+}
+
+.file-main {
+  min-width: 0;
+}
+
+.file-name {
+  color: #21435f;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.file-time {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #6a8094;
+}
+
+.pager-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 :deep(.notice-row-unread td.el-table__cell) {

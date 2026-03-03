@@ -43,6 +43,16 @@ public class TeamController {
             String className = userScopeService.currentStudentClassName();
             return ApiResponse.success(teamService.listTeamsByClass(publishId, className));
         }
+        if (RoleGuard.isTeacher()) {
+            if (publishId != null) {
+                userScopeService.requireManagePublish(publishId);
+            }
+            List<TrainTeam> list = teamService.listTeams(publishId);
+            if (publishId == null) {
+                list.removeIf(item -> !userScopeService.canManagePublish(item.getPublishId()));
+            }
+            return ApiResponse.success(list);
+        }
         return ApiResponse.success(teamService.listTeams(publishId));
     }
 
@@ -68,6 +78,7 @@ public class TeamController {
     @PostMapping
     public ApiResponse<TrainTeam> create(@RequestBody TrainTeam team) {
         RoleGuard.requireTeacherOrAdmin();
+        userScopeService.requireManagePublish(team.getPublishId());
         team.setReviewStatus(1);
         team.setReviewComment("教师创建团队");
         team.setReviewedBy(AuthContext.getUserId());
@@ -77,6 +88,11 @@ public class TeamController {
     @PutMapping("/{id}")
     public ApiResponse<Void> update(@PathVariable("id") Long id, @RequestBody TrainTeam payload) {
         RoleGuard.requireTeacherOrAdmin();
+        TrainTeam existing = mustGetTeam(id);
+        userScopeService.requireManagePublish(existing.getPublishId());
+        if (payload.getPublishId() != null && !payload.getPublishId().equals(existing.getPublishId())) {
+            userScopeService.requireManagePublish(payload.getPublishId());
+        }
         payload.setId(id);
         payload.setReviewStatus(1);
         payload.setReviewComment("教师维护团队");
@@ -88,6 +104,8 @@ public class TeamController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable("id") Long id) {
         RoleGuard.requireTeacherOrAdmin();
+        TrainTeam existing = mustGetTeam(id);
+        userScopeService.requireManagePublish(existing.getPublishId());
         teamService.deleteTeam(id);
         return ApiResponse.success();
     }
@@ -95,6 +113,8 @@ public class TeamController {
     @PutMapping("/{id}/review")
     public ApiResponse<Void> review(@PathVariable("id") Long id, @RequestBody Map<String, Object> body) {
         RoleGuard.requireTeacherOrAdmin();
+        TrainTeam existing = mustGetTeam(id);
+        userScopeService.requireManagePublish(existing.getPublishId());
         Integer reviewStatus = Integer.parseInt(String.valueOf(body.get("reviewStatus")));
         String reviewComment = body.get("reviewComment") == null ? null : String.valueOf(body.get("reviewComment"));
         teamService.reviewTeam(id, reviewStatus, reviewComment, AuthContext.getUserId());
@@ -168,6 +188,7 @@ public class TeamController {
             }
         } else {
             RoleGuard.requireTeacherOrAdmin();
+            userScopeService.requireManagePublish(team.getPublishId());
         }
 
         if (member.getStudentId() == null) {
@@ -197,6 +218,7 @@ public class TeamController {
             }
         } else {
             RoleGuard.requireTeacherOrAdmin();
+            userScopeService.requireManagePublish(team.getPublishId());
         }
 
         teamService.deleteMember(memberId);
@@ -226,6 +248,7 @@ public class TeamController {
             requireLeader(team, uid);
         } else {
             RoleGuard.requireTeacherOrAdmin();
+            userScopeService.requireManagePublish(team.getPublishId());
         }
         TrainTeamMember target = teamService.findMemberByTeamAndStudent(teamId, newLeaderStudentId);
         if (target == null) {
@@ -278,6 +301,7 @@ public class TeamController {
     @PostMapping("/generate")
     public ApiResponse<Map<String, Object>> generateByRule(@RequestParam("publishId") Long publishId) {
         RoleGuard.requireTeacherOrAdmin();
+        userScopeService.requireManagePublish(publishId);
         TrainProjectPublish publish = publishMapper.selectById(publishId);
         if (publish == null) {
             throw new BizException("开设计划不存在或已删除");

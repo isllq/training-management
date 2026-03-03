@@ -16,6 +16,18 @@ public interface TrainProjectMapper {
             "</script>")
     List<TrainProject> list(@Param("keyword") String keyword);
 
+    @Select("<script>" +
+            "SELECT DISTINCT p.* " +
+            "FROM train_project p " +
+            "JOIN train_project_publish pp ON pp.project_id = p.id AND pp.is_deleted = 0 " +
+            "WHERE p.is_deleted = 0 AND pp.teacher_id = #{teacherId} " +
+            "<if test='keyword != null and keyword != \"\"'> " +
+            "AND (p.project_name LIKE CONCAT('%',#{keyword},'%') OR p.project_code LIKE CONCAT('%',#{keyword},'%')) " +
+            "</if>" +
+            "ORDER BY p.id DESC" +
+            "</script>")
+    List<TrainProject> listByTeacherId(@Param("teacherId") Long teacherId, @Param("keyword") String keyword);
+
     @Insert("INSERT INTO train_project(project_code, project_name, description, total_hours, difficulty, status, created_at, updated_at, is_deleted) " +
             "VALUES(#{projectCode}, #{projectName}, #{description}, #{totalHours}, #{difficulty}, #{status}, NOW(), NOW(), 0)")
     @Options(useGeneratedKeys = true, keyProperty = "id")

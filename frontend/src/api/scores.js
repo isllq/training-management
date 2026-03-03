@@ -5,5 +5,9 @@ export const getScoreFormulaApi = () => http.get('/scores/formula')
 export const createScoreApi = (data) => http.post('/scores', data)
 export const updateScoreApi = (id, data) => http.put(`/scores/${id}`, data)
 export const deleteScoreApi = (id) => http.delete(`/scores/${id}`)
+export const importScoresApi = (formData, publishId) =>
+  http.post(`/scores/import${publishId ? `?publishId=${publishId}` : ''}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
 export const exportScoresUrl = (publishId) =>
   `/api/scores/export${publishId ? `?publishId=${publishId}` : ''}`

@@ -17,7 +17,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -38,7 +40,12 @@ public class UserServiceImpl implements UserService {
             wrapper.and(w -> w.like("username", keyword).or().like("real_name", keyword));
         }
         if (StringUtils.hasText(className)) {
-            wrapper.eq("class_name", className);
+            List<String> classScopes = parseClassScopes(className);
+            if (classScopes.size() == 1) {
+                wrapper.eq("class_name", classScopes.get(0));
+            } else if (!classScopes.isEmpty()) {
+                wrapper.in("class_name", classScopes);
+            }
         }
         if ("CLASS_ASC".equals(sortBy)) {
             wrapper.last("ORDER BY CASE WHEN class_name IS NULL OR class_name = '' THEN 1 ELSE 0 END ASC, class_name ASC, id ASC");
@@ -61,7 +68,12 @@ public class UserServiceImpl implements UserService {
             wrapper.eq("user_type", userType);
         }
         if (StringUtils.hasText(className)) {
-            wrapper.eq("class_name", className);
+            List<String> classScopes = parseClassScopes(className);
+            if (classScopes.size() == 1) {
+                wrapper.eq("class_name", classScopes.get(0));
+            } else if (!classScopes.isEmpty()) {
+                wrapper.in("class_name", classScopes);
+            }
         }
         wrapper.orderByAsc("id");
         return userMapper.selectList(wrapper);
@@ -173,5 +185,16 @@ public class UserServiceImpl implements UserService {
         }
         String value = dataFormatter.formatCellValue(cell);
         return value == null ? "" : value.trim();
+    }
+
+    private List<String> parseClassScopes(String className) {
+        if (!StringUtils.hasText(className)) {
+            return java.util.Collections.emptyList();
+        }
+        return Arrays.stream(className.split("[,，;；/\\s、]+"))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .collect(Collectors.toList());
     }
 }

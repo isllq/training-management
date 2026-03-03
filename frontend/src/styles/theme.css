@@ -154,6 +154,25 @@ body {
 .el-dialog {
   border-radius: 16px;
   animation: dialogPop var(--tm-mid) var(--tm-ease) both;
+  margin: 5vh auto !important;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.el-overlay-dialog {
+  overflow-y: auto;
+}
+
+.el-dialog__header,
+.el-dialog__footer {
+  flex: 0 0 auto;
+}
+
+.el-dialog__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  max-height: calc(90vh - 180px);
 }
 
 .el-input__wrapper,

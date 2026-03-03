@@ -62,7 +62,7 @@ public interface TrainAnnouncementMapper {
             "AND (a.publish_time IS NULL OR a.publish_time &lt;= NOW()) " +
             "AND (a.expire_time IS NULL OR a.expire_time &gt;= NOW()) " +
             "</if>" +
-            "ORDER BY a.priority DESC, a.publish_time DESC, a.id DESC" +
+            "ORDER BY IFNULL(a.publish_time, a.created_at) DESC, a.id DESC" +
             "</script>")
     List<AnnouncementView> list(@Param("publishId") Long publishId,
                                 @Param("keyword") String keyword,

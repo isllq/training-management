@@ -5,15 +5,64 @@
       <div class="module-head-desc">任务发布、学生提交、教师跟踪在同一页面闭环完成。</div>
     </div>
 
-    <div class="page-card">
-      <div class="toolbar">
-        <el-select v-model="query.projectId" placeholder="按实训项目筛选" clearable filterable>
-          <el-option v-for="item in projectOptions" :key="item.value" :label="item.label" :value="item.value" />
-        </el-select>
-        <el-button v-if="canManageTask" type="primary" @click="openCreate">新增任务</el-button>
+    <div class="page-card task-stage-card">
+      <div class="task-stage-head">
+        <div class="task-stage-filter">
+          <span class="task-stage-label">当前学期</span>
+          <el-select v-model="query.termName" placeholder="请选择学期" clearable filterable @change="onTermChange">
+            <el-option v-for="item in termOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </div>
+        <div class="task-stage-kpis" v-if="query.termName">
+          <div class="task-kpi-item">
+            <div class="task-kpi-label">项目数</div>
+            <div class="task-kpi-value">{{ projectCards.length }}</div>
+          </div>
+          <div class="task-kpi-item">
+            <div class="task-kpi-label">任务数</div>
+            <div class="task-kpi-value">{{ termTaskCount }}</div>
+          </div>
+          <div class="task-kpi-item">
+            <div class="task-kpi-label">临近截止</div>
+            <div class="task-kpi-value">{{ urgentTaskCount }}</div>
+          </div>
+        </div>
       </div>
 
-      <el-table :data="filteredTasks" border stripe>
+      <el-empty
+        v-if="!query.termName"
+        description="请先选择学期，再查看该学期全部项目与任务"
+        :image-size="64"
+      />
+      <div v-else class="project-card-grid">
+        <button
+          v-for="item in projectCards"
+          :key="item.projectId"
+          type="button"
+          class="project-card"
+          :class="{ active: item.projectId === activeProjectId }"
+          @click="selectProject(item.projectId)"
+        >
+          <div class="project-card-title">{{ item.projectName }}</div>
+          <div class="project-card-meta">{{ item.classCount }}个班级 · {{ item.publishCount }}个开设</div>
+          <div class="project-card-stats">
+            <span>任务 {{ item.taskCount }}</span>
+            <span>进行中 {{ item.activeCount }}</span>
+            <span>已截止 {{ item.overdueCount }}</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <div class="page-card">
+      <div class="toolbar">
+        <div class="project-focus-title">
+          {{ activeProjectCard ? `项目任务：${activeProjectCard.projectName}` : '请先选择上方项目卡片' }}
+        </div>
+        <el-button v-if="canManageTask" type="primary" :disabled="!activeProjectCard" @click="openCreate">新增任务</el-button>
+      </div>
+
+      <el-table :data="projectTasks" border stripe>
         <el-table-column label="实训项目" min-width="160">
           <template #default="{ row }">{{ row.projectName || projectNameByPublish(row.publishId) }}</template>
         </el-table-column>
@@ -38,23 +87,22 @@
             <el-tag :type="taskStatusType(row)">{{ taskStatusText(row) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column v-if="canManageTask" label="提交进度" width="120">
+        <el-table-column v-if="canManageTask" label="提交进度" width="220">
           <template #default="{ row }">
-            <el-tag :type="progressTagType(row.completionRate)">
-              {{ row.submittedGroupCount || 0 }}/{{ row.expectedGroupCount || 0 }}（{{ row.completionRate || 0 }}%）
-            </el-tag>
+            <div class="progress-cell">
+              <el-tag :type="progressTagType(row.completionRate)">
+                {{ row.submittedGroupCount || 0 }}/{{ row.expectedGroupCount || 0 }}（{{ row.completionRate || 0 }}%）
+              </el-tag>
+              <el-button link type="primary" @click="openSubmissionDrawer(row)">查看详情</el-button>
+            </div>
           </template>
-        </el-table-column>
-        <el-table-column v-if="canManageTask" label="未交小组" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.missingTeamNames || '全部已提交' }}</template>
         </el-table-column>
         <el-table-column prop="weight" label="评分权重(%)" width="110" />
         <el-table-column :width="canManageTask ? 360 : 250" label="操作">
           <template #default="{ row }">
             <el-button size="small" @click="openDetail(row)">详情</el-button>
-            <el-button v-if="canManageTask" size="small" @click="openSubmissionDrawer(row)">查看提交</el-button>
-            <el-button v-if="isStudentRole" size="small" type="primary" @click="openSubmitDialog(row)">
-              {{ hasSubmitted(row.id) ? '修改提交' : '提交任务' }}
+            <el-button v-if="isStudentRole && canOperateSubmission(row)" size="small" type="primary" @click="openSubmitDialog(row)">
+              {{ submitButtonText(row) }}
             </el-button>
             <el-button v-if="canManageTask" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button v-if="canManageTask" size="small" type="danger" @click="remove(row.id)">删除</el-button>
@@ -72,10 +120,8 @@
     >
       <el-form :model="form" label-width="95px" class="dialog-form">
         <el-form-item label="所属项目班级">
-          <el-select v-model="form.publishId" filterable placeholder="请选择项目/班级/学期">
-            <el-option-group v-for="group in publishOptionGroups" :key="group.label" :label="group.label">
-              <el-option v-for="item in group.options" :key="item.value" :label="item.label" :value="item.value" />
-            </el-option-group>
+          <el-select v-model="form.publishId" filterable placeholder="请选择项目/班级">
+            <el-option v-for="item in dialogPublishOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="任务标题"><el-input v-model="form.title" /></el-form-item>
@@ -195,13 +241,6 @@
         type="info"
         :closable="false"
       />
-      <el-alert
-        v-if="submissionTask && submissionTask.missingTeamNames"
-        :title="`未交小组：${submissionTask.missingTeamNames}`"
-        type="warning"
-        :closable="false"
-        style="margin-top: 8px"
-      />
       <el-table :data="submissionRows" border stripe style="margin-top: 12px">
         <el-table-column label="小组" width="130">
           <template #default="{ row }">{{ teamName(row.teamId) }}</template>
@@ -235,15 +274,15 @@
         <div class="detail-files">
           <div class="detail-files-title">任务附件</div>
           <el-empty v-if="!detailFiles.length" description="暂无附件" :image-size="56" />
-          <el-table v-else :data="detailFiles" border stripe>
-            <el-table-column prop="originalName" label="文件名" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="uploadedAt" label="上传时间" width="170" />
-            <el-table-column label="操作" width="90">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="downloadFile(row)">下载</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div v-else class="file-list">
+            <div v-for="row in detailFiles" :key="row.id" class="file-item">
+              <div class="file-main">
+                <div class="file-name">{{ row.originalName }}</div>
+                <div class="file-time">{{ row.uploadedAt || '-' }}</div>
+              </div>
+              <el-button size="small" type="primary" plain @click="downloadFile(row)">下载</el-button>
+            </div>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -267,15 +306,15 @@
         <div class="detail-files">
           <div class="detail-files-title">提交附件</div>
           <el-empty v-if="!submissionDetailFiles.length" description="暂无附件" :image-size="56" />
-          <el-table v-else :data="submissionDetailFiles" border stripe>
-            <el-table-column prop="originalName" label="文件名" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="uploadedAt" label="上传时间" width="170" />
-            <el-table-column label="操作" width="90">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="downloadFile(row)">下载</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div v-else class="file-list">
+            <div v-for="row in submissionDetailFiles" :key="row.id" class="file-item">
+              <div class="file-main">
+                <div class="file-name">{{ row.originalName }}</div>
+                <div class="file-time">{{ row.uploadedAt || '-' }}</div>
+              </div>
+              <el-button size="small" type="primary" plain @click="downloadFile(row)">下载</el-button>
+            </div>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -286,7 +325,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createTaskApi, deleteTaskApi, listTasksApi, updateTaskApi } from '../api/tasks'
 import { listProjectsApi, listPublishesApi } from '../api/projects'
@@ -300,7 +339,8 @@ import { fallbackName, toNameMap } from '../utils/dicts'
 const canManageTask = computed(() => canManageTeaching())
 const isStudentRole = computed(() => hasAnyRole([ROLE.STUDENT]))
 
-const query = reactive({ projectId: null })
+const query = reactive({ termName: '' })
+const activeProjectId = ref(null)
 const tasks = ref([])
 const projects = ref([])
 const publishes = ref([])
@@ -352,9 +392,15 @@ const detailVisible = ref(false)
 const detailTask = ref(null)
 const detailFiles = ref([])
 
-const projectOptions = computed(() =>
-  projects.value.map((item) => ({ value: item.id, label: item.projectName || `项目${item.id}` }))
-)
+const termOptions = computed(() => {
+  const set = new Set()
+  publishes.value.forEach((item) => {
+    if (item.termName) set.add(item.termName)
+  })
+  return Array.from(set)
+    .sort((a, b) => String(b).localeCompare(String(a)))
+    .map((value) => ({ value, label: value }))
+})
 
 const publishNameMap = computed(() => {
   const map = {}
@@ -381,44 +427,88 @@ const publishOptions = computed(() =>
     projectId: item.projectId || null
   }))
 )
-const publishOptionGroups = computed(() => {
-  const groupMap = {}
-  publishOptions.value.forEach((item) => {
-    const groupId = item.projectId || -1
-    if (!groupMap[groupId]) {
-      groupMap[groupId] = {
-        label: groupId === -1 ? '未关联项目' : projectName(groupId),
-        options: []
+const filteredPublishOptions = computed(() => {
+  if (!query.termName) return []
+  const term = String(query.termName)
+  return publishOptions.value.filter((item) => String(publishDetailMap.value[item.value]?.termName || '') === term)
+})
+const projectCards = computed(() => {
+  const map = {}
+  filteredPublishOptions.value.forEach((item) => {
+    const projectId = item.projectId || -1
+    if (!map[projectId]) {
+      map[projectId] = {
+        projectId,
+        projectName: projectId === -1 ? '未关联项目' : projectName(projectId),
+        publishIds: [],
+        publishCount: 0,
+        classSet: new Set()
       }
     }
-    groupMap[groupId].options.push(item)
+    map[projectId].publishIds.push(item.value)
+    map[projectId].publishCount += 1
+    const classText = String(publishDetailMap.value[item.value]?.className || '')
+    classText
+      .split(/[,，;；/\s、]+/)
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .forEach((name) => map[projectId].classSet.add(name))
   })
-  return Object.values(groupMap)
+  return Object.values(map).map((item) => {
+    const publishIdSet = new Set(item.publishIds)
+    const projectTasks = tasks.value.filter((task) => publishIdSet.has(task.publishId))
+    const activeCount = projectTasks.filter((task) => {
+      const sec = remainSeconds(task.deadline)
+      return sec == null || sec > 0
+    }).length
+    const overdueCount = projectTasks.filter((task) => {
+      const sec = remainSeconds(task.deadline)
+      return sec != null && sec <= 0
+    }).length
+    return {
+      projectId: item.projectId,
+      projectName: item.projectName,
+      publishIds: item.publishIds,
+      publishCount: item.publishCount,
+      classCount: item.classSet.size,
+      taskCount: projectTasks.length,
+      activeCount,
+      overdueCount
+    }
+  }).sort((a, b) => {
+    if (b.taskCount !== a.taskCount) return b.taskCount - a.taskCount
+    return String(a.projectName).localeCompare(String(b.projectName))
+  })
+})
+const activeProjectCard = computed(() =>
+  projectCards.value.find((item) => item.projectId === activeProjectId.value) || null
+)
+const activeProjectPublishIds = computed(() => new Set(activeProjectCard.value?.publishIds || []))
+const projectTasks = computed(() => {
+  if (!query.termName || !activeProjectCard.value) return []
+  return tasks.value.filter((item) => activeProjectPublishIds.value.has(item.publishId))
+})
+const termTaskCount = computed(() =>
+  tasks.value.filter((item) => String(termNameByPublish(item.publishId)) === String(query.termName || '')).length
+)
+const urgentTaskCount = computed(() =>
+  tasks.value.filter((item) => {
+    if (String(termNameByPublish(item.publishId)) !== String(query.termName || '')) return false
+    const sec = remainSeconds(item.deadline)
+    return sec != null && sec > 0 && sec <= 3 * 24 * 3600
+  }).length
+)
+const dialogPublishOptions = computed(() => {
+  if (!query.termName) return []
+  const source = activeProjectCard.value
+    ? filteredPublishOptions.value.filter((item) => item.projectId === activeProjectCard.value.projectId)
+    : filteredPublishOptions.value
+  return source.map((item) => ({ value: item.value, label: item.label }))
 })
 const teamNameMap = computed(() => toNameMap(teams.value, 'id', 'teamName'))
 const studentNameMap = computed(() => toNameMap(students.value, 'id', 'name'))
 const taskNameMap = computed(() => toNameMap(tasks.value, 'id', 'title'))
 const projectNameMap = computed(() => toNameMap(projects.value, 'id', 'projectName'))
-const publishIdsByProject = computed(() => {
-  const map = {}
-  publishes.value.forEach((item) => {
-    if (item.projectId == null) {
-      return
-    }
-    if (!map[item.projectId]) {
-      map[item.projectId] = []
-    }
-    map[item.projectId].push(item.id)
-  })
-  return map
-})
-const filteredTasks = computed(() => {
-  if (!query.projectId) {
-    return tasks.value
-  }
-  const publishIds = new Set(publishIdsByProject.value[query.projectId] || [])
-  return tasks.value.filter((item) => publishIds.has(item.publishId))
-})
 
 const publishName = (id) => fallbackName(id, publishNameMap.value, '开设')
 const displayTeamName = (teamName, teamId) => {
@@ -445,13 +535,7 @@ const projectNameByPublish = (id) => {
 const publishOptionLabel = (item) => {
   const projectText = projectName(item.projectId)
   const classText = item.className || '未设班级'
-  const termText = item.termName || '未设学期'
-  return `${projectText}｜${classText}｜${termText}`
-}
-
-const firstPublishIdByProject = (projectId) => {
-  const ids = publishIdsByProject.value[projectId] || []
-  return ids.length ? ids[0] : null
+  return `${projectText} · ${classText}`
 }
 
 const hasSubmitted = (taskId) => mySubmissions.value.some((item) => item.taskId === taskId)
@@ -498,7 +582,12 @@ const remainTagType = (deadline) => {
 }
 
 const taskStatusText = (task) => {
-  if (isStudentRole.value && hasSubmitted(task.id)) return '已完成'
+  if (isStudentRole.value) {
+    if (hasSubmitted(task.id)) return '已完成'
+    const sec = remainSeconds(task.deadline)
+    if (sec != null && sec <= 0) return '已截止'
+    return '待完成'
+  }
   const sec = remainSeconds(task.deadline)
   if (sec != null && sec <= 0) return '已截止'
   return '进行中'
@@ -511,6 +600,15 @@ const taskStatusType = (task) => {
   return 'warning'
 }
 
+const canOperateSubmission = (task) => {
+  if (!isStudentRole.value) return false
+  const sec = remainSeconds(task.deadline)
+  if (sec == null) return true
+  return sec > 0
+}
+
+const submitButtonText = (task) => (hasSubmitted(task.id) ? '修改提交' : '提交任务')
+
 const progressTagType = (rate) => {
   const value = Number(rate || 0)
   if (value >= 100) return 'success'
@@ -521,9 +619,6 @@ const progressTagType = (rate) => {
 const loadDicts = async () => {
   projects.value = await listProjectsApi({})
   publishes.value = await listPublishesApi({})
-  if (!query.projectId && projectOptions.value.length) {
-    query.projectId = projectOptions.value[0].value
-  }
   teams.value = await listTeamsApi({})
   students.value = await listUserOptionsApi({ userType: 'STUDENT' })
 }
@@ -535,6 +630,25 @@ const loadTasks = async () => {
   }
 }
 
+const selectProject = (projectId) => {
+  activeProjectId.value = projectId
+}
+
+const onTermChange = async () => {
+  if (!query.termName) {
+    activeProjectId.value = null
+    return
+  }
+  if (!projectCards.value.length) {
+    activeProjectId.value = null
+    return
+  }
+  if (!projectCards.value.some((item) => item.projectId === activeProjectId.value)) {
+    activeProjectId.value = projectCards.value[0].projectId
+  }
+  await loadTasks()
+}
+
 const loadTaskFiles = async (taskId) => {
   if (!taskId) {
     taskFiles.value = []
@@ -544,9 +658,10 @@ const loadTaskFiles = async (taskId) => {
 }
 
 const openCreate = () => {
-  const defaultPublishId = query.projectId
-    ? firstPublishIdByProject(query.projectId)
-    : (publishOptions.value.length ? publishOptions.value[0].value : null)
+  const defaultPublishId =
+    (dialogPublishOptions.value.length ? dialogPublishOptions.value[0].value : null) ||
+    (filteredPublishOptions.value.length ? filteredPublishOptions.value[0].value : null) ||
+    (publishOptions.value.length ? publishOptions.value[0].value : null)
   Object.assign(form, {
     id: null,
     publishId: defaultPublishId,
@@ -764,13 +879,161 @@ const downloadFile = async (row) => {
   }
 }
 
+watch(projectCards, (cards) => {
+  if (!query.termName) {
+    activeProjectId.value = null
+    return
+  }
+  if (!cards.length) {
+    activeProjectId.value = null
+    return
+  }
+  if (!cards.some((item) => item.projectId === activeProjectId.value)) {
+    activeProjectId.value = cards[0].projectId
+  }
+})
+
 onMounted(async () => {
   await loadDicts()
+  if (!query.termName && termOptions.value.length) {
+    query.termName = termOptions.value[0].value
+  }
   await loadTasks()
+  if (projectCards.value.length && activeProjectId.value == null) {
+    activeProjectId.value = projectCards.value[0].projectId
+  }
 })
 </script>
 
 <style scoped>
+.task-stage-card {
+  background:
+    linear-gradient(135deg, rgba(247, 252, 255, 0.96) 0%, rgba(240, 248, 253, 0.94) 100%);
+}
+
+.task-stage-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.task-stage-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-stage-label {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: #5a7286;
+  font-weight: 700;
+}
+
+.task-stage-filter :deep(.el-select) {
+  width: 280px;
+}
+
+.task-stage-kpis {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.task-kpi-item {
+  min-width: 110px;
+  border: 1px solid #d1e1ee;
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.task-kpi-label {
+  color: #597186;
+  font-size: 12px;
+}
+
+.task-kpi-value {
+  margin-top: 2px;
+  color: #1b3f5c;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.project-card-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.project-card {
+  appearance: none;
+  border: 1px solid #cfe0ec;
+  border-radius: 14px;
+  padding: 14px;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 251, 255, 0.95) 100%);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.project-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(20, 58, 88, 0.12);
+  border-color: #b9d0e1;
+}
+
+.project-card.active {
+  border-color: #2b6892;
+  box-shadow: 0 14px 26px rgba(16, 58, 90, 0.2);
+  background:
+    linear-gradient(140deg, rgba(36, 96, 136, 0.96) 0%, rgba(23, 68, 100, 0.96) 100%);
+}
+
+.project-card.active .project-card-title,
+.project-card.active .project-card-meta,
+.project-card.active .project-card-stats {
+  color: #f4f9fd;
+}
+
+.project-card-title {
+  font-weight: 800;
+  color: #1c3a53;
+  font-size: 16px;
+}
+
+.project-card-meta {
+  margin-top: 6px;
+  color: #5a7489;
+  font-size: 12px;
+}
+
+.project-card-stats {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #2f566f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.project-focus-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a3a54;
+}
+
+.progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .attachment-panel {
   width: 100%;
 }
@@ -784,7 +1047,7 @@ onMounted(async () => {
 .detail-wrap {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .detail-meta {
@@ -793,28 +1056,64 @@ onMounted(async () => {
   gap: 14px;
   color: #5b7387;
   font-size: 13px;
+  line-height: 1.6;
 }
 
 .detail-title {
-  font-size: 18px;
+  font-size: 24px;
+  line-height: 1.35;
   font-weight: 700;
-  color: #1a334a;
+  color: #122f46;
 }
 
 .detail-content {
   background: #f7fbff;
   border: 1px solid #d8e6f1;
-  border-radius: 10px;
-  padding: 12px;
-  color: #2d475c;
-  line-height: 1.7;
+  border-radius: 12px;
+  padding: 16px 18px;
+  color: #203a50;
+  font-size: 15px;
+  line-height: 1.8;
   white-space: pre-wrap;
 }
 
 .detail-files-title {
   font-weight: 700;
   color: #1f3f5a;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d9e6f1;
+  background: #f9fcff;
+}
+
+.file-main {
+  min-width: 0;
+}
+
+.file-name {
+  color: #21435f;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.file-time {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #6a8094;
 }
 
 .detail-link a {

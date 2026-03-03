@@ -55,6 +55,9 @@ public class AnnouncementController {
     @PostMapping
     public ApiResponse<TrainAnnouncement> create(@RequestBody TrainAnnouncement announcement) {
         RoleGuard.requireTeacherOrAdmin();
+        if (announcement.getPublishId() != null) {
+            userScopeService.requireManagePublish(announcement.getPublishId());
+        }
         announcement.setAuthorId(AuthContext.getUserId());
         return ApiResponse.success(announcementService.create(announcement));
     }
@@ -63,6 +66,9 @@ public class AnnouncementController {
     public ApiResponse<Void> update(@PathVariable("id") Long id, @RequestBody TrainAnnouncement announcement) {
         RoleGuard.requireTeacherOrAdmin();
         ensureAuthorOrAdmin(id);
+        if (announcement.getPublishId() != null) {
+            userScopeService.requireManagePublish(announcement.getPublishId());
+        }
         announcement.setId(id);
         announcementService.update(announcement);
         return ApiResponse.success();

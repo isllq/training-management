@@ -14,6 +14,7 @@ import com.training.service.SubmissionService;
 import com.training.service.TeamService;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -57,6 +58,7 @@ public class SubmissionController {
         ensureTaskInStudentClass(submission.getTaskId());
         Long uid = AuthContext.getUserId();
         TrainTask task = mustGetTask(submission.getTaskId());
+        requireTaskBeforeDeadline(task);
         TrainTeamMember membership = teamService.findStudentMembership(uid, task.getPublishId());
         if (membership == null) {
             throw new BizException("请先加入当前开设的小组后再提交任务");
@@ -85,6 +87,8 @@ public class SubmissionController {
         if (RoleGuard.isStudent()) {
             RoleGuard.requireSelfOrTeacherOrAdmin(existing.getStudentId());
             ensureTaskInStudentClass(existing.getTaskId());
+            TrainTask task = mustGetTask(existing.getTaskId());
+            requireTaskBeforeDeadline(task);
             submission.setStudentId(existing.getStudentId());
             submission.setTeamId(existing.getTeamId());
             submission.setVersionNo(1);
@@ -111,6 +115,8 @@ public class SubmissionController {
         if (RoleGuard.isStudent()) {
             RoleGuard.requireSelfOrTeacherOrAdmin(existing.getStudentId());
             ensureTaskInStudentClass(existing.getTaskId());
+            TrainTask task = mustGetTask(existing.getTaskId());
+            requireTaskBeforeDeadline(task);
         } else if (RoleGuard.isAdmin()) {
             // 管理员可删除异常数据
         } else {
@@ -141,5 +147,17 @@ public class SubmissionController {
             throw new BizException("任务不存在或已删除");
         }
         return task;
+    }
+
+    private void requireTaskBeforeDeadline(TrainTask task) {
+        if (!RoleGuard.isStudent()) {
+            return;
+        }
+        if (task == null || task.getDeadline() == null) {
+            return;
+        }
+        if (!task.getDeadline().isAfter(LocalDateTime.now())) {
+            throw new BizException("任务已截止，不能再提交或修改");
+        }
     }
 }

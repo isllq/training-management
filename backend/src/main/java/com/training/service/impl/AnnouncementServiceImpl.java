@@ -46,6 +46,25 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     @Override
     public void update(TrainAnnouncement announcement) {
         validate(announcement);
+        TrainAnnouncement existing = announcementMapper.selectById(announcement.getId());
+        if (existing == null) {
+            throw new BizException("公告不存在或已删除");
+        }
+        if (existing.getStatus() != null && existing.getStatus() == 1) {
+            throw new BizException("已发布公告不可编辑，请删除后重新发布");
+        }
+        if (announcement.getPriority() == null) {
+            announcement.setPriority(existing.getPriority() == null ? 1 : existing.getPriority());
+        }
+        if (announcement.getStatus() == null) {
+            announcement.setStatus(existing.getStatus() == null ? 0 : existing.getStatus());
+        }
+        if (announcement.getPublishTime() == null) {
+            announcement.setPublishTime(existing.getPublishTime());
+        }
+        if (announcement.getExpireTime() == null) {
+            announcement.setExpireTime(existing.getExpireTime());
+        }
         int affected = announcementMapper.update(announcement);
         if (affected <= 0) {
             throw new BizException("公告不存在或已删除");

@@ -9,70 +9,37 @@
     </div>
 
     <div class="metrics">
-      <div class="metric-card">
+      <button type="button" class="metric-card metric-action" @click="openMetric('announcement')">
         <div class="metric-label">未读公告</div>
         <div class="metric-value">{{ stats.unreadAnnouncementCount || 0 }}</div>
-      </div>
-      <div class="metric-card">
+        <div class="metric-foot">点击进入公告中心</div>
+      </button>
+      <button type="button" class="metric-card metric-action" @click="openMetric('task')">
         <div class="metric-label">7日内截止任务</div>
         <div class="metric-value">{{ deadlineSoonCount }}</div>
-      </div>
-      <div class="metric-card" v-if="!isStudentRole">
+        <div class="metric-foot">点击进入任务中心</div>
+      </button>
+      <button v-if="!isStudentRole" type="button" class="metric-card metric-action" @click="openMetric('team')">
         <div class="metric-label">小组总数</div>
         <div class="metric-value">{{ stats.teamCount || 0 }}</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">提交总数</div>
+        <div class="metric-foot">点击进入团队管理</div>
+      </button>
+      <button type="button" class="metric-card metric-action" @click="openMetric('submission')">
+        <div class="metric-label">{{ isStudentRole ? '我的提交' : '提交总数' }}</div>
         <div class="metric-value">{{ stats.submissionCount || 0 }}</div>
-      </div>
+        <div class="metric-foot">{{ isStudentRole ? '点击进入任务中心' : '点击查看提交详情' }}</div>
+      </button>
     </div>
 
-    <div class="top-grid">
-      <div class="page-card" v-if="isStudentRole">
-        <div class="card-title">我的资料</div>
-        <div class="profile-grid">
-          <div class="item"><span>姓名</span><b>{{ profile.realName || '-' }}</b></div>
-          <div class="item"><span>用户名</span><b>{{ profile.username || '-' }}</b></div>
-          <div class="item"><span>角色</span><b>{{ roleText(profile.userType) }}</b></div>
-          <div class="item"><span>班级</span><b>{{ profile.className || '-' }}</b></div>
-          <div class="item"><span>手机</span><b>{{ profile.phone || '-' }}</b></div>
-          <div class="item"><span>邮箱</span><b>{{ profile.email || '-' }}</b></div>
-        </div>
-      </div>
-
-      <div class="page-card">
-      <div class="card-title">当前待办</div>
-      <div class="todo-list">
-        <div class="todo-item todo-clickable" v-for="todo in todoList" :key="todo.label" @click="openTodo(todo)">
-          <span>{{ todo.label }}</span>
-          <b>{{ todo.value }}</b>
-        </div>
-      </div>
-    </div>
-    </div>
-
-    <div class="bottom-grid">
-      <div class="page-card">
-        <div class="card-title">近期任务截止提醒</div>
-        <el-table :data="upcomingTasks" border stripe>
-          <el-table-column prop="title" label="任务标题" min-width="180" show-overflow-tooltip />
-          <el-table-column label="阶段" width="90">
-            <template #default="{ row }">{{ stageText(row.stageType) }}</template>
-          </el-table-column>
-          <el-table-column prop="deadline" label="截止时间" width="170" />
-          <el-table-column prop="weight" label="权重(%)" width="90" />
-        </el-table>
-      </div>
-
-      <div class="page-card">
-        <div class="card-title">最新公告</div>
-        <el-table :data="recentAnnouncements" border stripe>
-          <el-table-column prop="title" label="公告标题" min-width="200" show-overflow-tooltip />
-          <el-table-column label="发布人" width="120">
-            <template #default="{ row }">{{ row.authorName || `用户${row.authorId}` }}</template>
-          </el-table-column>
-          <el-table-column prop="publishTime" label="发布时间" width="170" />
-        </el-table>
+    <div class="page-card" v-if="isStudentRole">
+      <div class="card-title">我的资料</div>
+      <div class="profile-grid">
+        <div class="item"><span>姓名</span><b>{{ profile.realName || '-' }}</b></div>
+        <div class="item"><span>用户名</span><b>{{ profile.username || '-' }}</b></div>
+        <div class="item"><span>角色</span><b>{{ roleText(profile.userType) }}</b></div>
+        <div class="item"><span>班级</span><b>{{ profile.className || '-' }}</b></div>
+        <div class="item"><span>手机</span><b>{{ profile.phone || '-' }}</b></div>
+        <div class="item"><span>邮箱</span><b>{{ profile.email || '-' }}</b></div>
       </div>
     </div>
 
@@ -99,7 +66,6 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { dashboardStatsApi } from '../api/dashboard'
 import { listTasksApi } from '../api/tasks'
-import { listAnnouncementsApi } from '../api/announcements'
 import { listSubmissionsApi } from '../api/submissions'
 import { meApi } from '../api/auth'
 import { ROLE, hasAnyRole } from '../utils/auth'
@@ -112,7 +78,6 @@ const isManageRole = computed(() => hasAnyRole([ROLE.ADMIN, ROLE.TEACHER]))
 const stats = ref({})
 const profile = ref({})
 const tasks = ref([])
-const announcements = ref([])
 const submissions = ref([])
 
 const todayText = computed(() => {
@@ -130,14 +95,6 @@ const toTimestamp = (v) => {
   return Number.isNaN(t) ? 0 : t
 }
 
-const upcomingTasks = computed(() => {
-  const now = Date.now()
-  return [...tasks.value]
-    .filter((item) => item.status === 1 && toTimestamp(item.deadline) >= now)
-    .sort((a, b) => toTimestamp(a.deadline) - toTimestamp(b.deadline))
-    .slice(0, 8)
-})
-
 const deadlineSoonCount = computed(() => {
   const now = Date.now()
   const sevenDays = now + 7 * 24 * 60 * 60 * 1000
@@ -146,17 +103,6 @@ const deadlineSoonCount = computed(() => {
     return item.status === 1 && ts >= now && ts <= sevenDays
   }).length
 })
-
-const overdueCount = computed(() => {
-  const now = Date.now()
-  return tasks.value.filter((item) => item.status === 1 && toTimestamp(item.deadline) > 0 && toTimestamp(item.deadline) < now).length
-})
-
-const recentAnnouncements = computed(() =>
-  [...announcements.value]
-    .sort((a, b) => toTimestamp(b.publishTime || b.createdAt) - toTimestamp(a.publishTime || a.createdAt))
-    .slice(0, 8)
-)
 
 const recentSubmissions = computed(() =>
   [...submissions.value]
@@ -173,33 +119,17 @@ const taskMap = computed(() => {
 })
 
 const taskName = (id) => taskMap.value[id] || `任务${id}`
-const stageText = (stageType) => {
-  if (stageType === 'OPENING') return '开题'
-  if (stageType === 'MIDTERM') return '中期'
-  if (stageType === 'FINAL') return '结题'
-  if (stageType === 'DAILY') return '日常'
-  return stageType || '-'
-}
 
-const todoList = computed(() => {
-  if (isStudentRole.value) {
-    return [
-      { label: '未读公告', value: stats.value.unreadAnnouncementCount || 0, path: '/announcements' },
-      { label: '7日内截止任务', value: deadlineSoonCount.value, path: '/tasks' },
-      { label: '逾期未完成任务', value: overdueCount.value, path: '/tasks' }
-    ]
+const openMetric = (type) => {
+  if (type === 'announcement') {
+    router.push('/announcements')
+    return
   }
-  return [
-    { label: '小组总数', value: stats.value.teamCount || 0, path: '/teams' },
-    { label: '未读公告', value: stats.value.unreadAnnouncementCount || 0, path: '/announcements' },
-    { label: '7日内截止任务', value: deadlineSoonCount.value, path: '/tasks' },
-    { label: '最近提交记录', value: recentSubmissions.value.length, path: '/tasks' }
-  ]
-})
-
-const openTodo = (todo) => {
-  if (!todo?.path) return
-  router.push(todo.path)
+  if (type === 'team') {
+    router.push('/teams')
+    return
+  }
+  router.push('/tasks')
 }
 
 const roleText = (userType) => {
@@ -210,17 +140,15 @@ const roleText = (userType) => {
 }
 
 const loadData = async () => {
-  const [statsRes, meRes, taskRes, announcementRes, submissionRes] = await Promise.allSettled([
+  const [statsRes, meRes, taskRes, submissionRes] = await Promise.allSettled([
     dashboardStatsApi(),
     meApi(),
     listTasksApi({}),
-    listAnnouncementsApi({}),
     isManageRole.value ? listSubmissionsApi({}) : Promise.resolve([])
   ])
   stats.value = statsRes.status === 'fulfilled' ? (statsRes.value || {}) : {}
   profile.value = meRes.status === 'fulfilled' ? (meRes.value || {}) : {}
   tasks.value = taskRes.status === 'fulfilled' ? (taskRes.value || []) : []
-  announcements.value = announcementRes.status === 'fulfilled' ? (announcementRes.value || []) : []
   submissions.value = submissionRes.status === 'fulfilled' ? (submissionRes.value || []) : []
 }
 
@@ -290,6 +218,17 @@ onUnmounted(() => {
   color: #f3f8fc;
 }
 
+.metric-action {
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.16s ease, box-shadow 0.2s ease;
+}
+
+.metric-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px rgba(22, 60, 88, 0.18);
+}
+
 .metric-label {
   opacity: 0.92;
   font-size: 13px;
@@ -301,16 +240,10 @@ onUnmounted(() => {
   font-weight: 800;
 }
 
-.top-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.bottom-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+.metric-foot {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.9;
 }
 
 .card-title {
@@ -345,46 +278,7 @@ onUnmounted(() => {
   color: #1f3f5a;
 }
 
-.todo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.todo-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-radius: 10px;
-  background: #f6fbff;
-  border: 1px solid #d8e6f1;
-}
-
-.todo-item span {
-  color: #4f677b;
-}
-
-.todo-item b {
-  color: #1f5377;
-}
-
-.todo-clickable {
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-
-.todo-clickable:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(26, 62, 94, 0.14);
-}
-
 @media (max-width: 980px) {
-  .top-grid,
-  .bottom-grid {
-    grid-template-columns: 1fr;
-  }
-
   .hero {
     flex-direction: column;
     align-items: flex-start;

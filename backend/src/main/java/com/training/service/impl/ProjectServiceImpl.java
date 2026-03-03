@@ -8,6 +8,7 @@ import com.training.model.entity.TrainProjectPublish;
 import com.training.service.ProjectService;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -23,6 +24,11 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public List<TrainProject> listProjects(String keyword) {
         return projectMapper.list(keyword);
+    }
+
+    @Override
+    public List<TrainProject> listProjectsByTeacher(Long teacherId, String keyword) {
+        return projectMapper.listByTeacherId(teacherId, keyword);
     }
 
     @Override
@@ -51,12 +57,13 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public List<TrainProjectPublish> listPublishes(String className) {
-        return publishMapper.list(className);
+    public List<TrainProjectPublish> listPublishes(String className, Long teacherId) {
+        return publishMapper.list(className, teacherId);
     }
 
     @Override
     public TrainProjectPublish createPublish(TrainProjectPublish publish) {
+        normalizePublish(publish);
         if (publish.getStatus() == null) {
             publish.setStatus(1);
         }
@@ -72,6 +79,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public void updatePublish(TrainProjectPublish publish) {
+        normalizePublish(publish);
         if (publish.getGroupCount() == null || publish.getGroupCount() < 0) {
             publish.setGroupCount(0);
         }
@@ -81,6 +89,28 @@ public class ProjectServiceImpl implements ProjectService {
         int affected = publishMapper.update(publish);
         if (affected <= 0) {
             throw new BizException("开设记录不存在或已删除");
+        }
+    }
+
+    private void normalizePublish(TrainProjectPublish publish) {
+        boolean hasAnyWeight = publish.getProcessWeight() != null || publish.getTeamWeight() != null || publish.getFinalWeight() != null;
+        if (!hasAnyWeight) {
+            return;
+        }
+        if (publish.getProcessWeight() == null || publish.getTeamWeight() == null || publish.getFinalWeight() == null) {
+            throw new BizException("评分权重需同时填写过程、协作、答辩三项");
+        }
+        BigDecimal min = BigDecimal.ZERO;
+        BigDecimal max = BigDecimal.ONE;
+        if (publish.getProcessWeight().compareTo(min) < 0 || publish.getProcessWeight().compareTo(max) > 0
+                || publish.getTeamWeight().compareTo(min) < 0 || publish.getTeamWeight().compareTo(max) > 0
+                || publish.getFinalWeight().compareTo(min) < 0 || publish.getFinalWeight().compareTo(max) > 0) {
+            throw new BizException("评分权重必须在0到1之间");
+        }
+        BigDecimal sum = publish.getProcessWeight().add(publish.getTeamWeight()).add(publish.getFinalWeight());
+        BigDecimal delta = sum.subtract(BigDecimal.ONE).abs();
+        if (delta.compareTo(new BigDecimal("0.0001")) > 0) {
+            throw new BizException("评分权重之和必须等于1");
         }
     }
 

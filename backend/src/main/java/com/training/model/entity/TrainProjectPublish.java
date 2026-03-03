@@ -2,6 +2,7 @@ package com.training.model.entity;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -17,6 +18,9 @@ public class TrainProjectPublish {
     private Integer groupCount;
     private Integer groupSizeLimit;
     private String assessmentStandard;
+    private BigDecimal processWeight;
+    private BigDecimal teamWeight;
+    private BigDecimal finalWeight;
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer status;

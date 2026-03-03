@@ -77,7 +77,7 @@
     >
       <el-form :model="form" label-width="95px" class="dialog-form">
         <el-form-item label="所属项目班级">
-          <el-select v-model="form.publishId" filterable placeholder="请选择项目/班级/学期">
+          <el-select v-model="form.publishId" filterable placeholder="请选择项目/班级">
             <el-option v-for="item in publishOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -225,8 +225,7 @@ const studentName = (id) => fallbackName(id, studentNameMap.value, '学生')
 const publishOptionLabel = (item) => {
   const projectText = projectName(item.projectId)
   const classText = item.className || '未设班级'
-  const termText = item.termName || '未设学期'
-  return `${projectText}｜${classText}｜${termText}`
+  return `${projectText} · ${classText}`
 }
 
 const displayTeamName = (teamName, teamId) => {

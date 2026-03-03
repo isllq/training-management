@@ -50,7 +50,7 @@
         </el-table-column>
       </el-table>
 
-      <el-dialog v-model="dialogVisible" :title="form.id ? '编辑用户' : '新增用户'" width="520px">
+      <el-dialog v-model="dialogVisible" :title="form.id ? '编辑用户' : '新增用户'" width="520px" append-to-body>
         <el-form :model="form" label-width="90px" class="dialog-form">
           <el-form-item label="用户名">
             <el-input v-model="form.username" :disabled="!!form.id" />

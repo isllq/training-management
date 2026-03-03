@@ -121,7 +121,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px" append-to-body>
       <el-form :model="form" label-width="90px" class="dialog-form">
         <template v-if="dialogType === 'college'">
           <el-form-item label="学院编码"><el-input v-model="form.collegeCode" :disabled="!!form.id" /></el-form-item>

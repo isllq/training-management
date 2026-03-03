@@ -7,12 +7,15 @@
 
     <div class="page-card">
       <div class="toolbar">
-        <el-select v-if="canModerate" v-model="query.className" placeholder="选择班级（默认全部）" clearable filterable>
-          <el-option v-for="item in classOptions" :key="item.value" :label="item.label" :value="item.value" />
+        <el-select v-model="query.termName" placeholder="选择学期（默认全部）" clearable filterable>
+          <el-option v-for="item in termOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+        <el-select v-model="query.publishId" placeholder="选择开设计划（默认全部）" clearable filterable>
+          <el-option v-for="item in filteredPublishOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
         <el-button type="primary" @click="openThreadCreate">新建问题主题</el-button>
       </div>
-      <el-table :data="threads" border stripe :row-class-name="rowClassName">
+      <el-table :data="filteredThreads" border stripe :row-class-name="rowClassName">
         <el-table-column label="所属开设" min-width="170">
           <template #default="{ row }">{{ publishName(row.publishId) }}</template>
         </el-table-column>
@@ -43,7 +46,7 @@
       </el-table>
     </div>
 
-    <el-dialog v-model="threadDialog" :title="threadForm.id ? '编辑问题主题' : '新建问题主题'" width="580px">
+    <el-dialog v-model="threadDialog" :title="threadForm.id ? '编辑问题主题' : '新建问题主题'" width="580px" append-to-body>
       <el-form :model="threadForm" label-width="95px" class="dialog-form">
         <el-form-item label="所属开设">
           <el-select v-model="threadForm.publishId" placeholder="请选择开设计划" filterable>
@@ -65,7 +68,7 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="replyDrawer" title="主题回复记录" size="460px">
+    <el-drawer v-model="replyDrawer" title="主题回复记录" size="460px" append-to-body>
       <div class="toolbar">
         <el-input v-model="replyContent" placeholder="输入回复内容" />
         <el-button type="primary" @click="submitReply">发送回复</el-button>
@@ -105,7 +108,7 @@ import { toNameMap, publishLabel, fallbackName } from '../utils/dicts'
 const canModerate = computed(() => hasAnyRole([ROLE.ADMIN, ROLE.TEACHER]))
 const currentUserId = computed(() => getUserId())
 
-const query = reactive({ className: '' })
+const query = reactive({ termName: '', publishId: null })
 const threads = ref([])
 const publishes = ref([])
 const users = ref([])
@@ -125,17 +128,25 @@ const replies = ref([])
 const replyContent = ref('')
 
 const publishOptions = computed(() => publishes.value.map((item) => ({ value: item.id, label: publishLabel(item) })))
-const classOptions = computed(() => {
-  const classSet = new Set()
+const termOptions = computed(() => {
+  const termSet = new Set()
   publishes.value.forEach((item) => {
-    const raw = item.className || ''
-    raw
-      .split(/[,，;；/\s]+/)
-      .map((name) => name.trim())
-      .filter(Boolean)
-      .forEach((name) => classSet.add(name))
+    if (item.termName) {
+      termSet.add(item.termName)
+    }
   })
-  return Array.from(classSet).sort().map((name) => ({ value: name, label: name }))
+  return Array.from(termSet)
+    .sort((a, b) => String(b).localeCompare(String(a)))
+    .map((value) => ({ value, label: value }))
+})
+const filteredPublishOptions = computed(() => {
+  if (!query.termName) {
+    return publishOptions.value
+  }
+  const term = String(query.termName)
+  return publishes.value
+    .filter((item) => String(item.termName || '') === term)
+    .map((item) => ({ value: item.id, label: publishLabel(item) }))
 })
 const publishNameMap = computed(() => {
   const map = {}
@@ -145,6 +156,23 @@ const publishNameMap = computed(() => {
   return map
 })
 const userNameMap = computed(() => toNameMap(users.value, 'id', 'name'))
+const publishTermMap = computed(() => {
+  const map = {}
+  publishes.value.forEach((item) => {
+    map[item.id] = item.termName || ''
+  })
+  return map
+})
+const filteredThreads = computed(() => {
+  if (query.publishId) {
+    return threads.value.filter((item) => item.publishId === query.publishId)
+  }
+  if (!query.termName) {
+    return threads.value
+  }
+  const term = String(query.termName)
+  return threads.value.filter((item) => String(publishTermMap.value[item.publishId] || '') === term)
+})
 
 const publishName = (id) => fallbackName(id, publishNameMap.value, '开设')
 const userName = (id) => fallbackName(id, userNameMap.value, '用户')
@@ -161,24 +189,14 @@ const loadDicts = async () => {
 
 const loadThreads = async () => {
   const params = {}
-  if (canModerate.value && query.className) params.className = query.className
+  if (query.publishId) params.publishId = query.publishId
   threads.value = await listQaThreadsApi(params)
 }
 
 const openThreadCreate = () => {
-  let defaultPublishId = publishOptions.value.length ? publishOptions.value[0].value : null
-  if (canModerate.value && query.className) {
-    const matched = publishes.value.find((item) => {
-      const classNames = String(item.className || '')
-        .split(/[,，;；/\s]+/)
-        .map((name) => name.trim())
-        .filter(Boolean)
-      return classNames.includes(query.className)
-    })
-    if (matched) {
-      defaultPublishId = matched.id
-    }
-  }
+  const defaultPublishId = query.publishId ||
+    (filteredPublishOptions.value.length ? filteredPublishOptions.value[0].value : null) ||
+    (publishOptions.value.length ? publishOptions.value[0].value : null)
   Object.assign(threadForm, {
     id: null,
     publishId: defaultPublishId,
@@ -253,7 +271,15 @@ onMounted(async () => {
   await loadThreads()
 })
 
-watch(() => query.className, async () => {
+watch(() => query.termName, async () => {
+  if (query.publishId && !filteredPublishOptions.value.some((item) => item.value === query.publishId)) {
+    query.publishId = null
+    return
+  }
+  await loadThreads()
+})
+
+watch(() => query.publishId, async () => {
   await loadThreads()
 })
 </script>

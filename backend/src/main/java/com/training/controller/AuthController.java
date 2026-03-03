@@ -6,6 +6,7 @@ import com.training.model.dto.LoginRequest;
 import com.training.model.dto.LoginResponse;
 import com.training.model.entity.SysUser;
 import com.training.security.AuthContext;
+import com.training.security.RoleGuard;
 import com.training.service.AuthService;
 import com.training.service.UserService;
 import org.springframework.validation.annotation.Validated;
@@ -92,6 +93,12 @@ public class AuthController {
                     return map;
                 })
                 .collect(Collectors.toList());
+        if (RoleGuard.isTeacher() && "TEACHER".equalsIgnoreCase(String.valueOf(userType))) {
+            Long uid = AuthContext.getUserId();
+            options = options.stream()
+                    .filter(item -> uid != null && uid.equals(item.get("id")))
+                    .collect(Collectors.toList());
+        }
         return ApiResponse.success(options);
     }
 }

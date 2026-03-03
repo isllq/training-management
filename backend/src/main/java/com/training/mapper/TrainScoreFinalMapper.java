@@ -19,6 +19,12 @@ public interface TrainScoreFinalMapper {
             "</script>")
     List<TrainScoreFinal> list(@Param("publishId") Long publishId);
 
+    @Select("SELECT * FROM train_score_final WHERE publish_id=#{publishId} AND student_id=#{studentId} AND is_deleted=0 LIMIT 1")
+    TrainScoreFinal selectByPublishAndStudent(@Param("publishId") Long publishId, @Param("studentId") Long studentId);
+
+    @Select("SELECT * FROM train_score_final WHERE id=#{id} AND is_deleted=0")
+    TrainScoreFinal selectById(@Param("id") Long id);
+
     @Insert("INSERT INTO train_score_final(publish_id, student_id, usual_score, task_score, report_score, final_score, updated_at, is_deleted) " +
             "VALUES(#{publishId}, #{studentId}, #{usualScore}, #{taskScore}, #{reportScore}, #{finalScore}, NOW(), 0)")
     @Options(useGeneratedKeys = true, keyProperty = "id")

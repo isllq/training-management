@@ -7,7 +7,7 @@
 
     <div class="login-shell">
       <section class="brand-panel">
-        <div class="brand-chip">2025-2026-2 学期</div>
+        <div class="brand-chip">当前学期实训</div>
         <h1>专业综合实训管理系统</h1>
         <p>公告、任务、小组、提交、成绩全流程在线协同。</p>
         <div class="brand-line"></div>
@@ -44,8 +44,9 @@
             <div class="captcha-row">
               <el-input
                 v-model="form.captcha"
-                placeholder="请输入验证码"
+                placeholder="验证码已自动填充"
                 maxlength="4"
+                readonly
                 @keyup.enter="login"
               />
               <button class="captcha-code" type="button" @click="refreshCaptcha">{{ captchaCode }}</button>
@@ -59,18 +60,18 @@
           <div class="quick-buttons">
             <el-button size="small" @click="fill('admin')">管理员</el-button>
             <el-button size="small" @click="fill('teacher01')">教师</el-button>
-            <el-button size="small" @click="fill('student01')">信安学院学生</el-button>
-            <el-button size="small" @click="fill('student07')">计算机学院学生</el-button>
+            <el-button size="small" @click="fill('teacher04')">李思源老师</el-button>
+            <el-button size="small" @click="fill('student01')">220701班学生</el-button>
+            <el-button size="small" @click="fill('student07')">220708班学生</el-button>
           </div>
         </div>
-        <div class="tip">默认密码：123456</div>
       </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
@@ -80,6 +81,7 @@ import { defaultHomeByRole } from '../utils/auth'
 const router = useRouter()
 const loading = ref(false)
 const captchaCode = ref('')
+let captchaTimer = null
 const form = reactive({
   username: 'admin',
   password: '123456',
@@ -102,10 +104,20 @@ const makeCaptcha = () => {
 
 const refreshCaptcha = () => {
   captchaCode.value = makeCaptcha()
-  form.captcha = ''
+  form.captcha = captchaCode.value
 }
 
-refreshCaptcha()
+onMounted(() => {
+  refreshCaptcha()
+  captchaTimer = setInterval(refreshCaptcha, 60000)
+})
+
+onBeforeUnmount(() => {
+  if (captchaTimer) {
+    clearInterval(captchaTimer)
+    captchaTimer = null
+  }
+})
 
 const login = async () => {
   if (!form.username || !form.password) {
@@ -338,12 +350,6 @@ const login = async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.tip {
-  margin-top: 10px;
-  color: #5f7387;
-  font-size: 13px;
 }
 
 @keyframes shellIn {

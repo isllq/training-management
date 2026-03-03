@@ -71,6 +71,39 @@ public class UserScopeService {
         }
     }
 
+    public boolean canManagePublish(Long publishId) {
+        if (publishId == null) {
+            return false;
+        }
+        if (RoleGuard.isAdmin()) {
+            return true;
+        }
+        if (!RoleGuard.isTeacher()) {
+            return false;
+        }
+        Long uid = AuthContext.getUserId();
+        if (uid == null) {
+            return false;
+        }
+        TrainProjectPublish publish = publishMapper.selectById(publishId);
+        return publish != null && uid.equals(publish.getTeacherId());
+    }
+
+    public void requireManagePublish(Long publishId) {
+        if (RoleGuard.isAdmin()) {
+            return;
+        }
+        if (!RoleGuard.isTeacher()) {
+            throw new BizException(4030, "无权限操作该开设计划");
+        }
+        if (publishId == null) {
+            throw new BizException("请选择开设计划");
+        }
+        if (!canManagePublish(publishId)) {
+            throw new BizException(4030, "仅该开设计划指导老师可操作");
+        }
+    }
+
     public boolean matchesClassScope(String studentClassName, String publishClassName) {
         if (!StringUtils.hasText(studentClassName) || !StringUtils.hasText(publishClassName)) {
             return false;

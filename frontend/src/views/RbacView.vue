@@ -49,7 +49,7 @@
       </el-table>
     </div>
 
-    <el-dialog v-model="roleDialog" :title="roleForm.id ? '编辑角色' : '新增角色'" width="520px">
+    <el-dialog v-model="roleDialog" :title="roleForm.id ? '编辑角色' : '新增角色'" width="520px" append-to-body>
       <el-form :model="roleForm" label-width="90px" class="dialog-form">
         <el-form-item label="角色编码"><el-input v-model="roleForm.roleCode" :disabled="!!roleForm.id" /></el-form-item>
         <el-form-item label="角色名称"><el-input v-model="roleForm.roleName" /></el-form-item>
@@ -66,7 +66,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="permDialog" :title="permForm.id ? '编辑权限' : '新增权限'" width="560px">
+    <el-dialog v-model="permDialog" :title="permForm.id ? '编辑权限' : '新增权限'" width="560px" append-to-body>
       <el-form :model="permForm" label-width="90px" class="dialog-form">
         <el-form-item label="权限编码"><el-input v-model="permForm.permCode" :disabled="!!permForm.id" /></el-form-item>
         <el-form-item label="权限名称"><el-input v-model="permForm.permName" /></el-form-item>
@@ -80,7 +80,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="bindPermDialog" title="绑定角色权限" width="560px">
+    <el-dialog v-model="bindPermDialog" title="绑定角色权限" width="560px" append-to-body>
       <el-checkbox-group v-model="bindPermissionIds">
         <el-checkbox v-for="perm in permissions" :key="perm.id" :label="perm.id">{{ perm.permName }}</el-checkbox>
       </el-checkbox-group>
