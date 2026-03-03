@@ -39,6 +39,13 @@ public interface TrainTeamMapper {
             "WHERE t.id=#{id} AND t.is_deleted=0")
     TrainTeam selectById(@Param("id") Long id);
 
+    @Select("SELECT t.*, p.group_size_limit, " +
+            "(SELECT COUNT(1) FROM train_team_member m WHERE m.team_id = t.id AND m.is_deleted = 0) AS member_count " +
+            "FROM train_team t " +
+            "LEFT JOIN train_project_publish p ON t.publish_id = p.id AND p.is_deleted = 0 " +
+            "WHERE t.id=#{id} AND t.is_deleted=0 FOR UPDATE")
+    TrainTeam selectByIdForUpdate(@Param("id") Long id);
+
     @Insert("INSERT INTO train_team(publish_id, team_name, leader_student_id, status, review_status, review_comment, reviewed_by, reviewed_at, created_at, updated_at, is_deleted) " +
             "VALUES(#{publishId}, #{teamName}, #{leaderStudentId}, #{status}, #{reviewStatus}, #{reviewComment}, #{reviewedBy}, #{reviewedAt}, NOW(), NOW(), 0)")
     @Options(useGeneratedKeys = true, keyProperty = "id")

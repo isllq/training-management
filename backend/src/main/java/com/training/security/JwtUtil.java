@@ -3,6 +3,7 @@ package com.training.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -11,8 +12,11 @@ import java.util.Map;
 
 @Component
 public class JwtUtil {
-    private static final String SECRET = "training-management-secret-2026";
-    private static final long EXPIRE_MILLIS = 24 * 60 * 60 * 1000L;
+    @Value("${training.security.jwt-secret}")
+    private String secret;
+
+    @Value("${training.security.jwt-expire-millis:86400000}")
+    private long expireMillis;
 
     public String generateToken(Long userId, String userType, String username) {
         Map<String, Object> claims = new HashMap<>();
@@ -23,12 +27,12 @@ public class JwtUtil {
                 .setClaims(claims)
                 .setSubject("training-auth")
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRE_MILLIS))
-                .signWith(SignatureAlgorithm.HS256, SECRET)
+                .setExpiration(new Date(System.currentTimeMillis() + expireMillis))
+                .signWith(SignatureAlgorithm.HS256, secret)
                 .compact();
     }
 
     public Claims parseToken(String token) {
-        return Jwts.parser().setSigningKey(SECRET).parseClaimsJws(token).getBody();
+        return Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody();
     }
 }

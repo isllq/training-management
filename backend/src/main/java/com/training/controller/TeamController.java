@@ -109,7 +109,6 @@ public class TeamController {
         Long uid = AuthContext.getUserId();
         TrainTeam team = mustGetTeam(teamId);
         ensureTeamInStudentClass(team);
-        ensureTeamNotFull(team);
 
         TrainTeamMember existing = teamService.findStudentMembership(uid, team.getPublishId());
         if (existing != null) {
@@ -175,7 +174,6 @@ public class TeamController {
             throw new BizException("请选择要加入的学生");
         }
         validateStudentCanJoin(member.getStudentId(), team);
-        ensureTeamNotFull(team);
         if (team.getLeaderStudentId() == null) {
             member.setRoleInTeam("组长");
         }
@@ -319,18 +317,4 @@ public class TeamController {
         return ApiResponse.success(result);
     }
 
-    private void ensureTeamNotFull(TrainTeam team) {
-        TrainProjectPublish publish = publishMapper.selectById(team.getPublishId());
-        if (publish == null) {
-            throw new BizException("开设计划不存在或已删除");
-        }
-        Integer limit = publish.getGroupSizeLimit();
-        if (limit == null || limit <= 0) {
-            return;
-        }
-        Long memberCount = teamService.countMembers(team.getId());
-        if (memberCount != null && memberCount >= limit) {
-            throw new BizException("该小组人数已满，请选择其他小组");
-        }
-    }
 }

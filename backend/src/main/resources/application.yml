@@ -36,6 +36,10 @@ logging:
 training:
   file:
     upload-dir: ./uploads
+  security:
+    jwt-secret: ${TRAINING_JWT_SECRET:training-management-dev-secret-change-in-prod}
+    jwt-expire-millis: 86400000
+    allowed-origin-patterns: http://localhost:5173,http://127.0.0.1:5173
   score:
     alpha: 0.4
     beta: 0.3

@@ -103,11 +103,18 @@ public class ScoreServiceImpl implements ScoreService {
         if (alpha == null || beta == null || gamma == null) {
             throw new BizException("成绩权重配置缺失，请检查training.score配置");
         }
+        if (!isWeightInRange(alpha) || !isWeightInRange(beta) || !isWeightInRange(gamma)) {
+            throw new BizException("成绩权重配置错误：alpha、beta、gamma必须在0到1之间");
+        }
         BigDecimal sum = alpha.add(beta).add(gamma);
         BigDecimal delta = sum.subtract(WEIGHT_SUM_TARGET).abs();
         if (delta.compareTo(WEIGHT_SUM_TOLERANCE) > 0) {
             throw new BizException("成绩权重配置错误：alpha+beta+gamma必须等于1");
         }
+    }
+
+    private boolean isWeightInRange(BigDecimal weight) {
+        return weight.compareTo(BigDecimal.ZERO) >= 0 && weight.compareTo(BigDecimal.ONE) <= 0;
     }
 
     private BigDecimal normalizeComponent(BigDecimal value, String name) {

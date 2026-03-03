@@ -7,6 +7,7 @@ import com.training.model.entity.TrainTeam;
 import com.training.model.entity.TrainTeamMember;
 import com.training.service.TeamService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -31,6 +32,7 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public TrainTeam createTeam(TrainTeam team) {
         if (team.getStatus() == null) {
             team.setStatus(1);
@@ -100,7 +102,19 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public TrainTeamMember addMember(TrainTeamMember member) {
+        TrainTeam lockedTeam = teamMapper.selectByIdForUpdate(member.getTeamId());
+        if (lockedTeam == null) {
+            throw new BizException("团队不存在或已删除");
+        }
+        Integer limit = lockedTeam.getGroupSizeLimit();
+        if (limit != null && limit > 0) {
+            Long memberCount = memberMapper.countByTeamId(member.getTeamId());
+            if (memberCount != null && memberCount >= limit) {
+                throw new BizException("该小组人数已满，请选择其他小组");
+            }
+        }
         TrainTeamMember active = memberMapper.selectByTeamAndStudent(member.getTeamId(), member.getStudentId());
         if (active != null) {
             throw new BizException("该学生已在团队中");
@@ -137,8 +151,9 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void transferLeader(Long teamId, Long newLeaderStudentId) {
-        TrainTeam team = teamMapper.selectById(teamId);
+        TrainTeam team = teamMapper.selectByIdForUpdate(teamId);
         if (team == null) {
             throw new BizException("团队不存在或已删除");
         }
